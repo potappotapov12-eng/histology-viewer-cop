@@ -1075,6 +1075,10 @@ function DiagnosticPage() {
   }, [diagnosticId, isPreviewMode]);
 
   const activeQuestion = diagnostic?.questions?.[activeIndex] || null;
+  const activeQuestionHighlight =
+    activeQuestion?.type === 'region' && activeQuestion.highlight?.type !== 'arrow'
+      ? null
+      : activeQuestion?.highlight;
   const answeredCount = diagnostic?.questions?.filter((question) =>
     getQuestionAnswerStatus(question, answers[question.id])
   ).length || 0;
@@ -1288,7 +1292,7 @@ function DiagnosticPage() {
           <SlideViewer
             key={activeQuestion.id}
             source={activeQuestion.slide.source}
-            highlight={activeQuestion.highlight}
+            highlight={activeQuestionHighlight}
             className="diagnosticViewer"
             isRegionAnswerMode={activeQuestion.type === 'region'}
             selectedRegion={answers[activeQuestion.id]?.selectedRegion}

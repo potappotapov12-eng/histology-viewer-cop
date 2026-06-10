@@ -698,8 +698,9 @@ async function buildDiagnosticPayload(rawDiagnostic, { includeAnswers = false } 
             regions: normalizedQuestion.regions,
             options: answerOptions.map((option) => option.text),
             optionIds: answerOptions.map((option) => option.id),
-            highlight: getQuestionVisibleMarker(normalizedQuestion) ||
-              (normalizedQuestion.answer.type === 'region' ? null : normalizedQuestion.region),
+            highlight: normalizedQuestion.answer.type === 'region'
+              ? getQuestionVisibleMarker(normalizedQuestion)
+              : getQuestionVisibleMarker(normalizedQuestion) || normalizedQuestion.region,
             slide: slide
               ? {
                   id: slide.id,
