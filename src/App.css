@@ -1164,6 +1164,7 @@ a:focus-visible {
 .arrowMarkerOverlay {
   border: 0;
   background: transparent;
+  box-shadow: none;
   overflow: visible;
 }
 
