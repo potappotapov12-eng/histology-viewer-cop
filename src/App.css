@@ -1955,6 +1955,61 @@ a:focus-visible {
   font-weight: 700;
 }
 
+.adminPage button,
+.adminActionLink,
+.adminBackLink {
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.adminTabs button:not(.active):hover,
+.diagnosticQuestionDots button:not(.active):hover,
+.diagnosticQuestionsTabs button:not(.active):hover,
+.regionTabs button:not(.active):hover,
+.resultsList button:not(.active):hover {
+  border-color: #b91c1c;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.adminForm .adminSecondaryButton,
+.adminSlideItem .adminSecondaryButton,
+.adminCardHeader .adminSecondaryButton,
+.diagnosticDraftBar .adminSecondaryButton,
+.regionActions .adminSecondaryButton,
+.adminSecondaryButton,
+.adminActionLink {
+  border: 1px solid #d1d5db;
+  background: #f8fafc;
+  color: #111827;
+}
+
+.adminForm .adminSecondaryButton:not(:disabled):hover,
+.adminSlideItem .adminSecondaryButton:not(:disabled):hover,
+.adminCardHeader .adminSecondaryButton:not(:disabled):hover,
+.diagnosticDraftBar .adminSecondaryButton:not(:disabled):hover,
+.regionActions .adminSecondaryButton:not(:disabled):hover,
+.adminSecondaryButton:not(:disabled):hover,
+.adminActionLink:hover {
+  border-color: #b91c1c;
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.adminForm button:not(.adminSecondaryButton, .adminDangerButton, .adminPrimarySubmit):not(:disabled):hover,
+.adminSlideItem button:not(.adminSecondaryButton, .adminDangerButton, .adminPrimarySubmit):not(:disabled):hover {
+  background: #991b1b;
+  color: white;
+}
+
+.adminBackLink:hover {
+  background: #991b1b;
+  color: white;
+}
+
 .diagnosticAdminItem a {
   display: inline-block;
   margin-top: 6px;
