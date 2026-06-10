@@ -1530,7 +1530,7 @@ function AdminPage() {
               </label>
 
               <label>
-                Открыть с, Екатеринбург
+                Открыть с
                 <input
                   type="datetime-local"
                   value={diagnosticForm.startsAt}
@@ -1539,7 +1539,7 @@ function AdminPage() {
               </label>
 
               <label>
-                Закрыть после, Екатеринбург
+                Закрыть после
                 <input
                   type="datetime-local"
                   value={diagnosticForm.endsAt}
