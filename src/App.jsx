@@ -26,6 +26,20 @@ function getSlideSystem(slide) {
   return slide?.system || DEFAULT_SYSTEM;
 }
 
+function normalizeDiagnosticSign(sign) {
+  if (typeof sign === 'string') {
+    return {
+      text: sign,
+      marker: null,
+    };
+  }
+
+  return {
+    text: sign?.text || '',
+    marker: sign?.marker || null,
+  };
+}
+
 function createTileSource(source) {
   if (!source) return null;
 
@@ -62,21 +76,78 @@ function createHighlightElement() {
   return element;
 }
 
-function addHighlightOverlay(viewer, highlight) {
-  if (!viewer || !highlight) return null;
+function createArrowElement(marker) {
+  const element = document.createElement('div');
+  element.className = 'diagnosticHighlightOverlay arrowMarkerOverlay';
+
+  const minX = Math.min(Number(marker.x1), Number(marker.x2));
+  const minY = Math.min(Number(marker.y1), Number(marker.y2));
+  const width = Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1)));
+  const height = Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1)));
+  const x1 = ((Number(marker.x1) - minX) / width) * 100;
+  const y1 = ((Number(marker.y1) - minY) / height) * 100;
+  const x2 = ((Number(marker.x2) - minX) / width) * 100;
+  const y2 = ((Number(marker.y2) - minY) / height) * 100;
+
+  element.innerHTML = `
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <marker id="atlas-arrow-head" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#atlas-arrow-head)"></line>
+    </svg>
+  `;
+
+  return element;
+}
+
+function getMarkerBounds(marker) {
+  if (!marker) return null;
+
+  if (marker.type === 'arrow') {
+    const x = Math.min(Number(marker.x1), Number(marker.x2));
+    const y = Math.min(Number(marker.y1), Number(marker.y2));
+    const width = Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1)));
+    const height = Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1)));
+
+    return { x, y, width, height };
+  }
+
+  return {
+    x: Number(marker.x),
+    y: Number(marker.y),
+    width: Number(marker.width),
+    height: Number(marker.height),
+  };
+}
+
+function getMarkerViewportRect(viewer, marker) {
+  if (!viewer || !marker) return null;
 
   const tiledImage = viewer.world.getItemAt(0);
   const size = tiledImage?.source?.dimensions;
 
   if (!size?.x || !size?.y) return null;
+  const bounds = getMarkerBounds(marker);
+  if (!bounds) return null;
 
-  const element = createHighlightElement();
-  const rect = tiledImage.imageToViewportRectangle(
-    (Number(highlight.x) / 100) * size.x,
-    (Number(highlight.y) / 100) * size.y,
-    (Number(highlight.width) / 100) * size.x,
-    (Number(highlight.height) / 100) * size.y
+  return tiledImage.imageToViewportRectangle(
+    (bounds.x / 100) * size.x,
+    (bounds.y / 100) * size.y,
+    (bounds.width / 100) * size.x,
+    (bounds.height / 100) * size.y
   );
+}
+
+function addMarkerOverlay(viewer, marker) {
+  const rect = getMarkerViewportRect(viewer, marker);
+  if (!viewer || !marker || !rect) return null;
+
+  const element = marker.type === 'arrow'
+    ? createArrowElement(marker)
+    : createHighlightElement();
 
   viewer.addOverlay({
     element,
@@ -84,6 +155,13 @@ function addHighlightOverlay(viewer, highlight) {
   });
 
   return element;
+}
+
+function addHighlightOverlay(viewer, highlight) {
+  return addMarkerOverlay(viewer, {
+    type: 'rect',
+    ...highlight,
+  });
 }
 
 function getViewerImagePercentPoint(viewer, OpenSeadragon, event) {
@@ -489,9 +567,9 @@ function Breadcrumbs({ slide, isAnswerHidden }) {
   );
 }
 
-function SlideInfo({ slide, isAnswerHidden, onRevealAnswer }) {
+function SlideInfo({ slide, isAnswerHidden, activeMarker, onRevealAnswer, onSelectMarker }) {
   const diagnosticSigns = Array.isArray(slide.diagnosticSigns)
-    ? slide.diagnosticSigns
+    ? slide.diagnosticSigns.map(normalizeDiagnosticSign).filter((sign) => sign.text)
     : [];
 
   if (isAnswerHidden) {
@@ -538,9 +616,21 @@ function SlideInfo({ slide, isAnswerHidden, onRevealAnswer }) {
         <h3>Диагностические признаки</h3>
 
         {diagnosticSigns.length > 0 ? (
-          <ul>
+          <ul className="diagnosticSignsList">
             {diagnosticSigns.map((sign, index) => (
-              <li key={`${sign}-${index}`}>{sign}</li>
+              <li key={`${sign.text}-${index}`}>
+                {sign.marker ? (
+                  <button
+                    type="button"
+                    className={activeMarker === sign.marker ? 'active' : ''}
+                    onClick={() => onSelectMarker(sign.marker)}
+                  >
+                    {sign.text}
+                  </button>
+                ) : (
+                  <span>{sign.text}</span>
+                )}
+              </li>
             ))}
           </ul>
         ) : (
@@ -612,9 +702,11 @@ function ErrorApp({ message }) {
 function ViewerApp() {
   const viewerElementRef = useRef(null);
   const viewerRef = useRef(null);
+  const activeMarkerOverlayRef = useRef(null);
 
   const [slidesData, setSlidesData] = useState([]);
   const [selectedSlide, setSelectedSlide] = useState(null);
+  const [activeMarker, setActiveMarker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrgan, setSelectedOrgan] = useState(ALL_ORGANS_OPTION);
   const [isInfoVisible, setIsInfoVisible] = useState(true);
@@ -684,7 +776,7 @@ function ViewerApp() {
         slide.organ,
         slide.stain,
         slide.description,
-        ...(slide.diagnosticSigns || []),
+        ...(slide.diagnosticSigns || []).map((sign) => normalizeDiagnosticSign(sign).text),
       ]
         .map(toSearchText)
         .join(' ');
@@ -718,6 +810,7 @@ function ViewerApp() {
 
   useEffect(() => {
     setIsAnswerVisible(false);
+    setActiveMarker(null);
   }, [selectedSlide?.id]);
 
   useEffect(() => {
@@ -753,10 +846,42 @@ function ViewerApp() {
 
     return () => {
       isCancelled = true;
+      if (activeMarkerOverlayRef.current) {
+        viewerRef.current?.removeOverlay(activeMarkerOverlayRef.current);
+        activeMarkerOverlayRef.current = null;
+      }
       viewerRef.current?.destroy();
       viewerRef.current = null;
     };
   }, [selectedSlide?.id, selectedSlide?.source]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return undefined;
+
+    if (activeMarkerOverlayRef.current) {
+      viewer.removeOverlay(activeMarkerOverlayRef.current);
+      activeMarkerOverlayRef.current = null;
+    }
+
+    if (activeMarker) {
+      activeMarkerOverlayRef.current = addMarkerOverlay(viewer, activeMarker);
+      const rect = getMarkerViewportRect(viewer, activeMarker);
+
+      if (rect) {
+        viewer.viewport.fitBounds(rect, false);
+        viewer.viewport.zoomBy(0.75);
+        viewer.viewport.applyConstraints();
+      }
+    }
+
+    return () => {
+      if (viewerRef.current === viewer && activeMarkerOverlayRef.current) {
+        viewer.removeOverlay(activeMarkerOverlayRef.current);
+        activeMarkerOverlayRef.current = null;
+      }
+    };
+  }, [activeMarker]);
 
   const zoomIn = () => {
     viewerRef.current?.viewport.zoomBy(1.3);
@@ -849,7 +974,9 @@ function ViewerApp() {
               <SlideInfo
                 slide={selectedSlide}
                 isAnswerHidden={isAnswerHidden}
+                activeMarker={activeMarker}
                 onRevealAnswer={() => setIsAnswerVisible(true)}
+                onSelectMarker={setActiveMarker}
               />
             )}
           </>

@@ -306,13 +306,27 @@ async function writeJsonArray(filePath, data) {
 
 function parseDiagnosticSigns(value) {
   if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
+    return value.map(normalizeDiagnosticSign).filter(Boolean);
   }
 
-  return String(value || '')
+  const rawValue = String(value || '').trim();
+
+  if (rawValue.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(rawValue);
+      if (Array.isArray(parsed)) {
+        return parsed.map(normalizeDiagnosticSign).filter(Boolean);
+      }
+    } catch {
+      // Fall through to the legacy newline format.
+    }
+  }
+
+  return rawValue
     .split('\n')
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((text) => ({ text, marker: null }));
 }
 
 function parseSelfCheckQuestions(value) {
@@ -324,6 +338,48 @@ function parseSelfCheckQuestions(value) {
     .split('\n')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeDiagnosticSign(value) {
+  if (typeof value === 'string') {
+    const text = value.trim();
+    return text ? { text, marker: null } : null;
+  }
+
+  const text = String(value?.text || '').trim();
+  if (!text) return null;
+
+  return {
+    text,
+    marker: normalizeSlideMarker(value?.marker),
+  };
+}
+
+function normalizeSlideMarker(marker) {
+  if (!marker || typeof marker !== 'object') return null;
+
+  const type = marker.type === 'arrow' ? 'arrow' : 'rect';
+
+  if (type === 'arrow') {
+    return {
+      type,
+      x1: clampPercent(marker.x1),
+      y1: clampPercent(marker.y1),
+      x2: clampPercent(marker.x2 ?? marker.x1),
+      y2: clampPercent(marker.y2 ?? marker.y1),
+    };
+  }
+
+  return {
+    type,
+    ...sanitizeHighlight(marker),
+  };
+}
+
+function clampPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, number));
 }
 
 function parseYekaterinburgDateTime(value) {

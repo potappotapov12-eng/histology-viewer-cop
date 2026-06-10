@@ -7,7 +7,7 @@ const INITIAL_FORM = {
   organ: '',
   stain: 'H&E',
   description: '',
-  diagnosticSigns: '',
+  diagnosticSigns: [],
   selfCheckQuestions: '',
   source: '',
 };
@@ -156,26 +156,86 @@ function buildHighlightFromPoints(startPoint, endPoint) {
   };
 }
 
+function buildArrowFromPoints(startPoint, endPoint) {
+  return {
+    type: 'arrow',
+    x1: Number(startPoint.x.toFixed(2)),
+    y1: Number(startPoint.y.toFixed(2)),
+    x2: Number(endPoint.x.toFixed(2)),
+    y2: Number(endPoint.y.toFixed(2)),
+  };
+}
+
 function createHighlightOverlayElement() {
   const element = document.createElement('div');
   element.className = 'diagnosticHighlightOverlay';
   return element;
 }
 
-function addPickerHighlightOverlay(viewer, highlight) {
-  if (!viewer || !highlight) return null;
+function createPickerArrowElement(marker) {
+  const element = document.createElement('div');
+  element.className = 'diagnosticHighlightOverlay arrowMarkerOverlay';
+  const minX = Math.min(Number(marker.x1), Number(marker.x2));
+  const minY = Math.min(Number(marker.y1), Number(marker.y2));
+  const width = Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1)));
+  const height = Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1)));
+  const x1 = ((Number(marker.x1) - minX) / width) * 100;
+  const y1 = ((Number(marker.y1) - minY) / height) * 100;
+  const x2 = ((Number(marker.x2) - minX) / width) * 100;
+  const y2 = ((Number(marker.y2) - minY) / height) * 100;
+
+  element.innerHTML = `
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <marker id="admin-arrow-head" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#admin-arrow-head)"></line>
+    </svg>
+  `;
+
+  return element;
+}
+
+function getPickerMarkerBounds(marker) {
+  if (!marker) return null;
+
+  if (marker.type === 'arrow') {
+    return {
+      x: Math.min(Number(marker.x1), Number(marker.x2)),
+      y: Math.min(Number(marker.y1), Number(marker.y2)),
+      width: Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1))),
+      height: Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1))),
+    };
+  }
+
+  return {
+    x: Number(marker.x),
+    y: Number(marker.y),
+    width: Number(marker.width),
+    height: Number(marker.height),
+  };
+}
+
+function addPickerHighlightOverlay(viewer, marker) {
+  if (!viewer || !marker) return null;
 
   const tiledImage = viewer.world.getItemAt(0);
   const size = tiledImage?.source?.dimensions;
 
   if (!tiledImage || !size?.x || !size?.y) return null;
+  const bounds = getPickerMarkerBounds(marker);
+  if (!bounds) return null;
 
-  const element = createHighlightOverlayElement();
+  const element = marker.type === 'arrow'
+    ? createPickerArrowElement(marker)
+    : createHighlightOverlayElement();
   const rect = tiledImage.imageToViewportRectangle(
-    (Number(highlight.x) / 100) * size.x,
-    (Number(highlight.y) / 100) * size.y,
-    (Number(highlight.width) / 100) * size.x,
-    (Number(highlight.height) / 100) * size.y
+    (bounds.x / 100) * size.x,
+    (bounds.y / 100) * size.y,
+    (bounds.width / 100) * size.x,
+    (bounds.height / 100) * size.y
   );
 
   viewer.addOverlay({
@@ -186,7 +246,7 @@ function addPickerHighlightOverlay(viewer, highlight) {
   return element;
 }
 
-function HighlightPicker({ slide, highlight, onChange }) {
+function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
   const viewerElementRef = useRef(null);
   const viewerRef = useRef(null);
   const openSeadragonRef = useRef(null);
@@ -290,7 +350,11 @@ function HighlightPicker({ slide, highlight, onChange }) {
 
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStartRef.current = point;
-    onChange(buildHighlightFromPoints(point, point));
+    onChange(
+      markerType === 'arrow'
+        ? buildArrowFromPoints(point, point)
+        : buildHighlightFromPoints(point, point)
+    );
   };
 
   const updateDrawing = (event) => {
@@ -302,7 +366,11 @@ function HighlightPicker({ slide, highlight, onChange }) {
     );
     if (!point) return;
 
-    onChange(buildHighlightFromPoints(dragStartRef.current, point));
+    onChange(
+      markerType === 'arrow'
+        ? buildArrowFromPoints(dragStartRef.current, point)
+        : buildHighlightFromPoints(dragStartRef.current, point)
+    );
   };
 
   const finishDrawing = (event) => {
@@ -390,9 +458,24 @@ function HighlightPicker({ slide, highlight, onChange }) {
   );
 }
 
-function signsToText(signs) {
-  if (!Array.isArray(signs)) return '';
-  return signs.join('\n');
+function normalizeSlideDiagnosticSigns(signs) {
+  if (!Array.isArray(signs)) return [];
+
+  return signs
+    .map((sign) => {
+      if (typeof sign === 'string') {
+        return {
+          text: sign,
+          marker: null,
+        };
+      }
+
+      return {
+        text: sign?.text || '',
+        marker: sign?.marker || null,
+      };
+    })
+    .filter((sign) => sign.text || sign.marker);
 }
 
 function questionsToText(questions) {
@@ -547,6 +630,7 @@ function AdminPage() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [file, setFile] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  const [activeSlideSignIndex, setActiveSlideSignIndex] = useState(0);
   const [diagnostics, setDiagnostics] = useState([]);
   const [diagnosticStatus, setDiagnosticStatus] = useState('');
   const [diagnosticForm, setDiagnosticForm] = useState(INITIAL_DIAGNOSTIC_FORM);
@@ -703,10 +787,75 @@ function AdminPage() {
     }));
   };
 
+  const updateSlideDiagnosticSign = (index, patch) => {
+    setForm((current) => ({
+      ...current,
+      diagnosticSigns: current.diagnosticSigns.map((sign, signIndex) =>
+        signIndex === index
+          ? {
+              ...sign,
+              ...patch,
+            }
+          : sign
+      ),
+    }));
+  };
+
+  const addSlideDiagnosticSign = () => {
+    setForm((current) => {
+      const nextSigns = [
+        ...current.diagnosticSigns,
+        {
+          text: '',
+          marker: null,
+        },
+      ];
+
+      setActiveSlideSignIndex(nextSigns.length - 1);
+      return {
+        ...current,
+        diagnosticSigns: nextSigns,
+      };
+    });
+  };
+
+  const removeSlideDiagnosticSign = (index) => {
+    setForm((current) => ({
+      ...current,
+      diagnosticSigns: current.diagnosticSigns.filter((_, signIndex) => signIndex !== index),
+    }));
+    setActiveSlideSignIndex((current) => Math.max(0, current - 1));
+  };
+
+  const changeSlideSignMarkerType = (index, markerType) => {
+    const currentMarker = form.diagnosticSigns[index]?.marker;
+    const nextMarker =
+      markerType === 'arrow'
+        ? {
+            type: 'arrow',
+            x1: currentMarker?.x1 ?? currentMarker?.x ?? 35,
+            y1: currentMarker?.y1 ?? currentMarker?.y ?? 35,
+            x2: currentMarker?.x2 ?? 55,
+            y2: currentMarker?.y2 ?? 45,
+          }
+        : {
+            type: 'rect',
+            x: currentMarker?.x ?? 35,
+            y: currentMarker?.y ?? 35,
+            width: currentMarker?.width ?? 20,
+            height: currentMarker?.height ?? 18,
+          };
+
+    updateSlideDiagnosticSign(index, {
+      marker: nextMarker,
+    });
+  };
+
   const resetForm = ({ clearStatus = true } = {}) => {
     setForm(INITIAL_FORM);
     setFile(null);
     setEditingId(null);
+    setActiveSlideSignIndex(0);
     if (clearStatus) setStatus('');
     setJobProgress(null);
 
@@ -724,12 +873,13 @@ function AdminPage() {
       organ: slide.organ || '',
       stain: slide.stain || 'H&E',
       description: slide.description || '',
-      diagnosticSigns: signsToText(slide.diagnosticSigns),
+      diagnosticSigns: normalizeSlideDiagnosticSigns(slide.diagnosticSigns),
       selfCheckQuestions: questionsToText(slide.selfCheckQuestions),
       source: slide.source || '',
     });
 
     setFile(null);
+    setActiveSlideSignIndex(0);
     setJobProgress(null);
     setStatus(`Редактирование: ${slide.title}`);
 
@@ -757,7 +907,10 @@ function AdminPage() {
       const formData = new FormData();
 
       Object.entries(form).forEach(([key, value]) => {
-        formData.append(key, value);
+        formData.append(
+          key,
+          key === 'diagnosticSigns' ? JSON.stringify(value) : value
+        );
       });
 
       if (file) {
@@ -1357,19 +1510,106 @@ function AdminPage() {
               />
             </label>
 
-            <label>
-              Диагностические признаки
-              <textarea
-                rows="6"
-                value={form.diagnosticSigns}
-                onChange={(event) =>
-                  updateField('diagnosticSigns', event.target.value)
-                }
-                placeholder={
-                  'Каждый признак с новой строки\nНекроз кардиомиоцитов\nКариолизис\nДемаркационная зона'
-                }
-              />
-            </label>
+            <div className="slideSignsEditor">
+              <div className="adminCardHeader compact">
+                <div>
+                  <h3>Диагностические признаки</h3>
+                  <p>Каждый признак можно связать с прямоугольником или стрелкой на препарате.</p>
+                </div>
+                <button
+                  type="button"
+                  className="adminSecondaryButton"
+                  onClick={addSlideDiagnosticSign}
+                >
+                  Добавить признак
+                </button>
+              </div>
+
+              {form.diagnosticSigns.length > 0 ? (
+                <div className="slideSignsList">
+                  {form.diagnosticSigns.map((sign, signIndex) => (
+                    <div
+                      key={`${signIndex}-${sign.text}`}
+                      className={signIndex === activeSlideSignIndex ? 'slideSignItem active' : 'slideSignItem'}
+                    >
+                      <button
+                        type="button"
+                        className="slideSignSelect"
+                        onClick={() => setActiveSlideSignIndex(signIndex)}
+                      >
+                        Признак {signIndex + 1}
+                        {sign.marker ? ` · ${sign.marker.type === 'arrow' ? 'стрелка' : 'область'}` : ''}
+                      </button>
+                      <input
+                        value={sign.text}
+                        onChange={(event) =>
+                          updateSlideDiagnosticSign(signIndex, { text: event.target.value })
+                        }
+                        placeholder="Например: демаркационная зона"
+                      />
+                      <button
+                        type="button"
+                        className="adminDangerButton"
+                        onClick={() => removeSlideDiagnosticSign(signIndex)}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="adminHint">Добавьте первый диагностический признак.</p>
+              )}
+
+              {form.diagnosticSigns[activeSlideSignIndex] && (
+                <div className="slideSignMarkerEditor">
+                  <div className="regionActions">
+                    <button
+                      type="button"
+                      className="adminSecondaryButton"
+                      onClick={() => changeSlideSignMarkerType(activeSlideSignIndex, 'rect')}
+                    >
+                      Прямоугольник
+                    </button>
+                    <button
+                      type="button"
+                      className="adminSecondaryButton"
+                      onClick={() => changeSlideSignMarkerType(activeSlideSignIndex, 'arrow')}
+                    >
+                      Стрелка
+                    </button>
+                    <button
+                      type="button"
+                      className="adminSecondaryButton"
+                      disabled={!form.diagnosticSigns[activeSlideSignIndex].marker}
+                      onClick={() => updateSlideDiagnosticSign(activeSlideSignIndex, { marker: null })}
+                    >
+                      Очистить отметку
+                    </button>
+                  </div>
+
+                  {form.source ? (
+                    <HighlightPicker
+                      slide={{ source: form.source }}
+                      highlight={form.diagnosticSigns[activeSlideSignIndex].marker}
+                      markerType={form.diagnosticSigns[activeSlideSignIndex].marker?.type || 'rect'}
+                      onChange={(marker) =>
+                        updateSlideDiagnosticSign(activeSlideSignIndex, {
+                          marker: {
+                            type: marker.type || 'rect',
+                            ...marker,
+                          },
+                        })
+                      }
+                    />
+                  ) : (
+                    <div className="highlightEmptyPreview">
+                      Укажите DZI-адрес или сохраните препарат с файлом, чтобы отметить признак.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <label>
               Вопросы для самопроверки
