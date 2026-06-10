@@ -179,19 +179,25 @@ function createPickerArrowElement(marker) {
   const minY = Math.min(Number(marker.y1), Number(marker.y2));
   const width = Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1)));
   const height = Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1)));
-  const x1 = ((Number(marker.x1) - minX) / width) * 100;
-  const y1 = ((Number(marker.y1) - minY) / height) * 100;
-  const x2 = ((Number(marker.x2) - minX) / width) * 100;
-  const y2 = ((Number(marker.y2) - minY) / height) * 100;
+  const padding = 12;
+  const usableSize = 100 - padding * 2;
+  const x1 = padding + ((Number(marker.x1) - minX) / width) * usableSize;
+  const y1 = padding + ((Number(marker.y1) - minY) / height) * usableSize;
+  const x2 = padding + ((Number(marker.x2) - minX) / width) * usableSize;
+  const y2 = padding + ((Number(marker.y2) - minY) / height) * usableSize;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const headLength = 13;
+  const headAngle = Math.PI / 7;
+  const headLeftX = x2 - headLength * Math.cos(angle - headAngle);
+  const headLeftY = y2 - headLength * Math.sin(angle - headAngle);
+  const headRightX = x2 - headLength * Math.cos(angle + headAngle);
+  const headRightY = y2 - headLength * Math.sin(angle + headAngle);
 
   element.innerHTML = `
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <marker id="admin-arrow-head" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-          <path d="M 0 0 L 10 5 L 0 10 z"></path>
-        </marker>
-      </defs>
-      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#admin-arrow-head)"></line>
+      <line class="arrowMarkerLine" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"></line>
+      <line class="arrowMarkerHead" x1="${x2}" y1="${y2}" x2="${headLeftX}" y2="${headLeftY}"></line>
+      <line class="arrowMarkerHead" x1="${x2}" y1="${y2}" x2="${headRightX}" y2="${headRightY}"></line>
     </svg>
   `;
 
