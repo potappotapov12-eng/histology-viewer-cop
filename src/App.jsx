@@ -230,7 +230,9 @@ function SlideViewer({
   const viewerRef = useRef(null);
   const openSeadragonRef = useRef(null);
   const dragStartRef = useRef(null);
+  const highlightOverlayRef = useRef(null);
   const selectedOverlayRef = useRef(null);
+  const [isViewerReady, setIsViewerReady] = useState(false);
   const [regionToolMode, setRegionToolMode] = useState('pan');
 
   useEffect(() => {
@@ -241,6 +243,9 @@ function SlideViewer({
     if (!viewerElement || !tileSources) return undefined;
 
     viewerRef.current?.destroy();
+    highlightOverlayRef.current = null;
+    selectedOverlayRef.current = null;
+    setIsViewerReady(false);
 
     import('openseadragon').then(({ default: OpenSeadragon }) => {
       if (isCancelled) return;
@@ -267,7 +272,7 @@ function SlideViewer({
       viewerRef.current = viewer;
 
       const handleOpen = () => {
-        if (highlight) addHighlightOverlay(viewer, highlight);
+        setIsViewerReady(true);
       };
 
       viewer.addHandler('open', handleOpen);
@@ -275,15 +280,45 @@ function SlideViewer({
 
     return () => {
       isCancelled = true;
+      if (highlightOverlayRef.current) {
+        viewerRef.current?.removeOverlay(highlightOverlayRef.current);
+        highlightOverlayRef.current = null;
+      }
+      if (selectedOverlayRef.current) {
+        viewerRef.current?.removeOverlay(selectedOverlayRef.current);
+        selectedOverlayRef.current = null;
+      }
       viewerRef.current?.destroy();
       viewerRef.current = null;
       openSeadragonRef.current = null;
+      setIsViewerReady(false);
     };
-  }, [source, highlight]);
+  }, [source]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!viewer) return undefined;
+    if (!viewer || !isViewerReady) return undefined;
+
+    if (highlightOverlayRef.current) {
+      viewer.removeOverlay(highlightOverlayRef.current);
+      highlightOverlayRef.current = null;
+    }
+
+    if (highlight) {
+      highlightOverlayRef.current = addHighlightOverlay(viewer, highlight);
+    }
+
+    return () => {
+      if (viewerRef.current === viewer && highlightOverlayRef.current) {
+        viewer.removeOverlay(highlightOverlayRef.current);
+        highlightOverlayRef.current = null;
+      }
+    };
+  }, [highlight, isViewerReady]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return undefined;
 
     if (selectedOverlayRef.current) {
       viewer.removeOverlay(selectedOverlayRef.current);
@@ -300,7 +335,7 @@ function SlideViewer({
         selectedOverlayRef.current = null;
       }
     };
-  }, [selectedRegion]);
+  }, [selectedRegion, isViewerReady]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
