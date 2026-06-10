@@ -78,12 +78,13 @@ function createHighlightElement() {
 
 function createArrowElement(marker) {
   const element = document.createElement('div');
-  element.className = 'diagnosticHighlightOverlay arrowMarkerOverlay';
+  element.className = 'arrowMarkerOverlay';
 
-  const minX = Math.min(Number(marker.x1), Number(marker.x2));
-  const minY = Math.min(Number(marker.y1), Number(marker.y2));
-  const width = Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1)));
-  const height = Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1)));
+  const bounds = getMarkerBounds(marker);
+  const minX = bounds.x;
+  const minY = bounds.y;
+  const width = bounds.width;
+  const height = bounds.height;
   const padding = 12;
   const usableSize = 100 - padding * 2;
   const x1 = padding + ((Number(marker.x1) - minX) / width) * usableSize;
@@ -113,10 +114,15 @@ function getMarkerBounds(marker) {
   if (!marker) return null;
 
   if (marker.type === 'arrow') {
-    const x = Math.min(Number(marker.x1), Number(marker.x2));
-    const y = Math.min(Number(marker.y1), Number(marker.y2));
-    const width = Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1)));
-    const height = Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1)));
+    const rawX = Math.min(Number(marker.x1), Number(marker.x2));
+    const rawY = Math.min(Number(marker.y1), Number(marker.y2));
+    const rawWidth = Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1)));
+    const rawHeight = Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1)));
+    const padding = 2;
+    const x = Math.max(0, rawX - padding);
+    const y = Math.max(0, rawY - padding);
+    const width = Math.min(100 - x, rawWidth + padding * 2);
+    const height = Math.min(100 - y, rawHeight + padding * 2);
 
     return { x, y, width, height };
   }

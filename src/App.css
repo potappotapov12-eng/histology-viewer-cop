@@ -1166,6 +1166,7 @@ a:focus-visible {
   background: transparent;
   box-shadow: none;
   overflow: visible;
+  pointer-events: none;
 }
 
 .arrowMarkerOverlay svg {
