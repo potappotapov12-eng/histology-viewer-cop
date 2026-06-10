@@ -38,3 +38,23 @@ npm run dev
 ```bash
 npm run dev -- --host 0.0.0.0
 ```
+
+## Разработка и деплой
+
+Код хранится в GitHub, а ветка `main` считается стабильной версией для сервера.
+Изменения лучше делать в отдельных ветках и вливать в `main` через Pull Request.
+
+Перед отправкой изменений:
+
+```bash
+npm run lint
+npm run build
+```
+
+На сервере после обновления `main`:
+
+```bash
+./scripts/deploy.sh
+```
+
+Подробнее: `docs/development-workflow.md`.
