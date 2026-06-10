@@ -1282,7 +1282,7 @@ function DiagnosticPage() {
           <SlideViewer
             key={activeQuestion.id}
             source={activeQuestion.slide.source}
-            highlight={activeQuestion.type === 'region' ? null : activeQuestion.highlight}
+            highlight={activeQuestion.highlight}
             className="diagnosticViewer"
             isRegionAnswerMode={activeQuestion.type === 'region'}
             selectedRegion={answers[activeQuestion.id]?.selectedRegion}

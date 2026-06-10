@@ -698,7 +698,8 @@ async function buildDiagnosticPayload(rawDiagnostic, { includeAnswers = false } 
             regions: normalizedQuestion.regions,
             options: answerOptions.map((option) => option.text),
             optionIds: answerOptions.map((option) => option.id),
-            highlight: normalizedQuestion.region,
+            highlight: getQuestionVisibleMarker(normalizedQuestion) ||
+              (normalizedQuestion.answer.type === 'region' ? null : normalizedQuestion.region),
             slide: slide
               ? {
                   id: slide.id,
@@ -901,6 +902,14 @@ function getMarkerBounds(marker) {
   };
 }
 
+function getQuestionVisibleMarker(question) {
+  const markers = Array.isArray(question.regions)
+    ? question.regions
+    : [question.region];
+
+  return markers.find((marker) => marker?.type === 'arrow') || null;
+}
+
 function gradeTextAnswer(question, textAnswer) {
   const normalizedAnswer = normalizeOpenAnswer(textAnswer);
   const acceptedTexts = question.answer.acceptedTexts.length > 0
@@ -936,9 +945,9 @@ function gradeOrderingAnswer(question, orderedItemIds = []) {
 
 function gradeRegionAnswer(question, selectedRegion) {
   if (!selectedRegion) return false;
-  const regions = Array.isArray(question.regions)
+  const regions = (Array.isArray(question.regions)
     ? question.regions
-    : [question.region];
+    : [question.region]).filter((region) => region?.type !== 'arrow');
   if (regions.length === 0) return false;
 
   if (question.grading.regionMode === 'center') {
@@ -976,7 +985,11 @@ async function validateDiagnosticForPublication(diagnostic) {
       errors.push(`Вопрос ${number}: нужно минимум два варианта ответа`);
     }
 
-    if (question.type === 'region' && (!Array.isArray(question.regions) || question.regions.length === 0)) {
+    if (
+      question.type === 'region' &&
+      (!Array.isArray(question.regions) ||
+        question.regions.filter((region) => region?.type !== 'arrow').length === 0)
+    ) {
       errors.push(`Вопрос ${number}: добавьте хотя бы одну правильную область`);
     }
   });
