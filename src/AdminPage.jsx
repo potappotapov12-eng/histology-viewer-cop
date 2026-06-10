@@ -24,6 +24,16 @@ const INITIAL_DIAGNOSTIC_FORM = {
 
 const DEFAULT_REGION_THRESHOLD = 70;
 const DIAGNOSTIC_DRAFT_KEY = 'histology-viewer-diagnostic-draft';
+const DIAGNOSTIC_TIME_ZONE = 'Asia/Yekaterinburg';
+const DIAGNOSTIC_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
+  timeZone: DIAGNOSTIC_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
 
 function createDiagnosticQuestion(slideId = '') {
   const highlight = {
@@ -77,12 +87,19 @@ function createDiagnosticQuestion(slideId = '') {
   };
 }
 
-function toDateTimeLocal(value) {
+function toYekaterinburgDateTimeLocal(value) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return offsetDate.toISOString().slice(0, 16);
+
+  const parts = Object.fromEntries(
+    DIAGNOSTIC_DATE_TIME_FORMATTER
+      .formatToParts(date)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 function createTileSource(source) {
@@ -1054,8 +1071,8 @@ function AdminPage() {
     setDiagnosticForm({
       id: diagnostic.id,
       title: diagnostic.title || '',
-      startsAt: toDateTimeLocal(diagnostic.startsAt),
-      endsAt: toDateTimeLocal(diagnostic.endsAt),
+      startsAt: toYekaterinburgDateTimeLocal(diagnostic.startsAt),
+      endsAt: toYekaterinburgDateTimeLocal(diagnostic.endsAt),
       durationMinutes: diagnostic.durationMinutes || '',
       isPublished: diagnostic.isPublished !== false,
       questions: Array.isArray(diagnostic.questions)
@@ -1513,7 +1530,7 @@ function AdminPage() {
               </label>
 
               <label>
-                Открыть с
+                Открыть с, Екатеринбург
                 <input
                   type="datetime-local"
                   value={diagnosticForm.startsAt}
@@ -1522,7 +1539,7 @@ function AdminPage() {
               </label>
 
               <label>
-                Закрыть после
+                Закрыть после, Екатеринбург
                 <input
                   type="datetime-local"
                   value={diagnosticForm.endsAt}

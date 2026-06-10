@@ -23,6 +23,7 @@ const DIAGNOSTIC_RESULTS_JSON = path.join(DATA_DIR, 'diagnostic-results.json');
 
 const RAW_SLIDES_DIR = path.join(PROJECT_ROOT, 'raw-slides');
 const PUBLIC_SLIDES_DIR = path.join(PROJECT_ROOT, 'public', 'slides');
+const DIAGNOSTIC_TIME_ZONE_OFFSET_MINUTES = 5 * 60;
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -325,9 +326,56 @@ function parseSelfCheckQuestions(value) {
     .filter(Boolean);
 }
 
+function parseYekaterinburgDateTime(value) {
+  const match = String(value || '').trim().match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/
+  );
+
+  if (!match) return null;
+
+  const [, year, month, day, hour, minute, second = '0', millisecond = '0'] = match;
+  const parts = {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hour: Number(hour),
+    minute: Number(minute),
+    second: Number(second),
+    millisecond: Number(millisecond.padEnd(3, '0')),
+  };
+  const localAsUtcTimestamp = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    parts.millisecond
+  );
+  const localAsUtcDate = new Date(localAsUtcTimestamp);
+
+  if (
+    localAsUtcDate.getUTCFullYear() !== parts.year ||
+    localAsUtcDate.getUTCMonth() !== parts.month - 1 ||
+    localAsUtcDate.getUTCDate() !== parts.day ||
+    localAsUtcDate.getUTCHours() !== parts.hour ||
+    localAsUtcDate.getUTCMinutes() !== parts.minute ||
+    localAsUtcDate.getUTCSeconds() !== parts.second
+  ) {
+    return '';
+  }
+
+  return new Date(
+    localAsUtcTimestamp - DIAGNOSTIC_TIME_ZONE_OFFSET_MINUTES * 60 * 1000
+  ).toISOString();
+}
+
 function parseDateValue(value) {
   const rawValue = String(value || '').trim();
   if (!rawValue) return '';
+
+  const yekaterinburgDate = parseYekaterinburgDateTime(rawValue);
+  if (yekaterinburgDate !== null) return yekaterinburgDate;
 
   const date = new Date(rawValue);
   return Number.isNaN(date.getTime()) ? '' : date.toISOString();
