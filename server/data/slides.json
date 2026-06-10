@@ -1,0 +1,60 @@
+[
+  {
+    "id": "1",
+    "title": "Инфаркт миокарда",
+    "system": "Сердечно-сосудистая система",
+    "organ": "Сердце",
+    "stain": "H&E",
+    "source": "/slides/infarkt-myokardu.dzi",
+    "description": "В миокарде участок некроза неправильной формы сиреневато-розового цвета, в нем определяются конторы\r\nмышечных клеток и ядерная пыль (кариорексис), ядра отсутствуют (кариолизис). Вокруг инфаркта видна\r\nдемаркационная зона, состоящая из молодых клеток, полнокровных кровеносных сосудов и волокнистых структур\r\n(начало организации).",
+    "diagnosticSigns": [
+      "Участок некроза",
+      "Демаркационная зона"
+    ],
+    "selfCheckQuestions": []
+  },
+  {
+    "id": "4",
+    "title": "Тест",
+    "system": "Тест",
+    "organ": "Тест",
+    "stain": "H&E",
+    "source": "/slides/4.dzi",
+    "description": "",
+    "diagnosticSigns": [],
+    "selfCheckQuestions": []
+  },
+  {
+    "id": "6",
+    "title": "Тест",
+    "system": "Тест",
+    "organ": "Тест",
+    "stain": "H&E",
+    "source": "/slides/6.dzi",
+    "description": "",
+    "diagnosticSigns": [],
+    "selfCheckQuestions": []
+  },
+  {
+    "id": "2",
+    "title": "Тест",
+    "system": "Тест",
+    "organ": "Тест",
+    "stain": "H&E",
+    "source": "/slides/2.dzi",
+    "description": "",
+    "diagnosticSigns": [],
+    "selfCheckQuestions": []
+  },
+  {
+    "id": "7",
+    "title": "Лимфатический узел",
+    "system": "Лимфатическая система",
+    "organ": "Лимфатический узел",
+    "stain": "H&E",
+    "source": "/slides/7.dzi",
+    "description": "",
+    "diagnosticSigns": [],
+    "selfCheckQuestions": []
+  }
+]

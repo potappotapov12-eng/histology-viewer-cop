@@ -1,0 +1,1136 @@
+[
+  {
+    "id": "1780909567101-1ba6ab73cf1ed",
+    "diagnosticId": "diagnostika-0",
+    "diagnosticTitle": "Общая диагностика",
+    "studentName": "Потапов Артем Денисович",
+    "group": "ОЛД-249",
+    "score": 0,
+    "total": 1,
+    "percent": 0,
+    "answers": [
+      {
+        "questionId": "1780909451981-4891e4a16a425",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 1,
+        "correctOption": "Вариант 2",
+        "isCorrect": false
+      }
+    ],
+    "submittedAt": "2026-06-08T09:06:07.101Z"
+  },
+  {
+    "id": "1780909709849-81fc6af423cdc",
+    "diagnosticId": "diagnostika-0",
+    "diagnosticTitle": "Общая диагностика",
+    "studentName": "Потапов Артем Денисович",
+    "group": "ОЛД-249",
+    "score": 4,
+    "total": 5,
+    "percent": 80,
+    "answers": [
+      {
+        "questionId": "1780909451981-4891e4a16a425",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 1,
+        "correctOption": "Вариант 2",
+        "isCorrect": false
+      },
+      {
+        "questionId": "1780909620531-309322deb25308",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": true
+      },
+      {
+        "questionId": "1780909623264-1d693194d01148",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": true
+      },
+      {
+        "questionId": "1780909624127-d0674cc8739258",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": true
+      },
+      {
+        "questionId": "1780909624302-91ab37cea30628",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T09:08:29.849Z"
+  },
+  {
+    "id": "1780911610900-ea1267f27574b",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "Иванов Иван Иванович",
+    "group": "ОЛД-249",
+    "score": 1,
+    "total": 1,
+    "percent": 100,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780910891232-8620ca4d98b8e",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T09:40:10.900Z"
+  },
+  {
+    "id": "1780912065981-07773b2a8a543",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "фываф",
+    "group": "выфв",
+    "score": 0,
+    "total": 1,
+    "percent": 0,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780911968095-d9076a51ea2a",
+        "selectedIndex": null,
+        "selectedOption": "",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": false
+      }
+    ],
+    "submittedAt": "2026-06-08T09:47:45.981Z"
+  },
+  {
+    "id": "1780912288561-3e2c47a692db9",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "фыаыф",
+    "group": "фыаф",
+    "score": 0,
+    "total": 1,
+    "percent": 0,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780912249431-b9ceaf0223c8e8",
+        "selectedIndex": null,
+        "selectedOption": "",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": false
+      }
+    ],
+    "submittedAt": "2026-06-08T09:51:28.561Z"
+  },
+  {
+    "id": "1780917660836-3a13df8ed3714",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "выа",
+    "group": "выа",
+    "score": 1,
+    "total": 1,
+    "percent": 100,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780917580465-370661078c04a8",
+        "selectedIndex": 0,
+        "selectedOption": "Вариант 1",
+        "correctIndex": 0,
+        "correctOption": "Вариант 1",
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T11:21:00.836Z"
+  },
+  {
+    "id": "1780920353753-1da66208d6a6c",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "sfdsf",
+    "group": "sdfsd",
+    "score": 1,
+    "total": 1,
+    "percent": 100,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780920285907-38aad5b5f43d6",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 60.25,
+          "y": 42.05,
+          "width": 4.61,
+          "height": 6.06
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Вариант 1",
+        "correctOptions": [
+          "Вариант 1"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T12:05:53.753Z"
+  },
+  {
+    "id": "1780933345318-54d0d0a337a67",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "лдролдвпрлд",
+    "group": "вптдлватпдл",
+    "score": 1,
+    "total": 1,
+    "percent": 100,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780933265659-b18a8d23102a48",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 60.42,
+          "y": 27.98,
+          "width": 8.44,
+          "height": 6.92
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Вариант 1",
+        "correctOptions": [
+          "Вариант 1"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T15:42:25.318Z"
+  },
+  {
+    "id": "1780933577709-652a4445c7f97",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "доавплдоавы",
+    "group": "варпарпа",
+    "score": 0,
+    "total": 1,
+    "percent": 0,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780933430870-9539eb672e898",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "opt-1",
+        "selectedOptionIds": [
+          "opt-1"
+        ],
+        "selectedOption": "вапвап",
+        "selectedOptions": [
+          "вапвап"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 3,
+        "correctIndices": [
+          3
+        ],
+        "correctOption": "авпвап",
+        "correctOptions": [
+          "авпвап"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      }
+    ],
+    "submittedAt": "2026-06-08T15:46:17.709Z"
+  },
+  {
+    "id": "1780933687821-13558fd804038",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "впыварпвар",
+    "group": "аврапвр",
+    "score": 1,
+    "total": 2,
+    "percent": 50,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780933430870-9539eb672e898",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "opt-2",
+        "selectedOptionIds": [
+          "opt-2"
+        ],
+        "selectedOption": "авпвапва",
+        "selectedOptions": [
+          "авпвапва"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 3,
+        "correctIndices": [
+          3
+        ],
+        "correctOption": "авпвап",
+        "correctOptions": [
+          "авпвап"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "1780933633392-ecc342ed7dc8a",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 57.98,
+          "y": 35.53,
+          "width": 14.66,
+          "height": 16.05
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Вариант 1",
+        "correctOptions": [
+          "Вариант 1"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T15:48:07.821Z"
+  },
+  {
+    "id": "1780933854386-ff01d55511302",
+    "diagnosticId": "1",
+    "diagnosticTitle": "1",
+    "studentName": "1",
+    "group": "1",
+    "score": 1,
+    "total": 2,
+    "percent": 50,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780933430870-9539eb672e898",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "opt-0",
+        "selectedOptionIds": [
+          "opt-0"
+        ],
+        "selectedOption": "выпаывп",
+        "selectedOptions": [
+          "выпаывп"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 3,
+        "correctIndices": [
+          3
+        ],
+        "correctOption": "авпвап",
+        "correctOptions": [
+          "авпвап"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "1780933633392-ecc342ed7dc8a",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 5.72,
+          "y": 4.16,
+          "width": 90.99,
+          "height": 85.42
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Вариант 1",
+        "correctOptions": [
+          "Вариант 1"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T15:50:54.386Z"
+  },
+  {
+    "id": "1780935170995-09edf117c5cfd",
+    "diagnosticId": "papipi",
+    "diagnosticTitle": "пспипапаи",
+    "studentName": "чами",
+    "group": "ам",
+    "score": 0,
+    "total": 1,
+    "percent": 0,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780935067991-ba260af5ab3178",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "opt-0",
+        "selectedOptionIds": [
+          "opt-0"
+        ],
+        "selectedOption": "Вариант 1",
+        "selectedOptions": [
+          "Вариант 1"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 1,
+        "correctIndices": [
+          1
+        ],
+        "correctOption": "Вариант 2",
+        "correctOptions": [
+          "Вариант 2"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      }
+    ],
+    "submittedAt": "2026-06-08T16:12:50.995Z"
+  },
+  {
+    "id": "1780935272840-025f6285bc0bc",
+    "diagnosticId": "papipi",
+    "diagnosticTitle": "пспипапаи",
+    "studentName": "рспт",
+    "group": "сарпа",
+    "score": 1,
+    "total": 2,
+    "percent": 50,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780935067991-ba260af5ab3178",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "opt-0",
+        "selectedOptionIds": [
+          "opt-0"
+        ],
+        "selectedOption": "Вариант 1",
+        "selectedOptions": [
+          "Вариант 1"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 1,
+        "correctIndices": [
+          1
+        ],
+        "correctOption": "Вариант 2",
+        "correctOptions": [
+          "Вариант 2"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "1780935191263-0b83533f0f45f8",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 50.29,
+          "y": 27.44,
+          "width": 3.15,
+          "height": 3.5
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Вариант 1",
+        "correctOptions": [
+          "Вариант 1"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T16:14:32.840Z"
+  },
+  {
+    "id": "1780935332666-a68ee24e1951f",
+    "diagnosticId": "papipi",
+    "diagnosticTitle": "пспипапаи",
+    "studentName": "срт",
+    "group": "пар",
+    "score": 1,
+    "total": 2,
+    "percent": 50,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "1780935067991-ba260af5ab3178",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "opt-1",
+        "selectedOptionIds": [
+          "opt-1"
+        ],
+        "selectedOption": "Вариант 2",
+        "selectedOptions": [
+          "Вариант 2"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 1,
+        "correctIndices": [
+          1
+        ],
+        "correctOption": "Вариант 2",
+        "correctOptions": [
+          "Вариант 2"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "1780935191263-0b83533f0f45f8",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 21.55,
+          "y": 26.98,
+          "width": 4.23,
+          "height": 9.31
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Вариант 1",
+        "correctOptions": [
+          "Вариант 1"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      }
+    ],
+    "submittedAt": "2026-06-08T16:15:32.666Z"
+  },
+  {
+    "id": "1780936015630-1213999849c4c",
+    "diagnosticId": "demo-all-question-types",
+    "diagnosticTitle": "Демонстрация всех видов вопросов",
+    "studentName": "Потапов Артем Денисович",
+    "group": "ОЛД-249",
+    "score": 11,
+    "total": 13,
+    "percent": 85,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "demo-single",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "single-0",
+        "selectedOptionIds": [
+          "single-0"
+        ],
+        "selectedOption": "Сердце",
+        "selectedOptions": [
+          "Сердце"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Сердце",
+        "correctOptions": [
+          "Сердце"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-multiple",
+        "type": "multiple",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [
+          "multiple-0",
+          "multiple-1",
+          "multiple-2"
+        ],
+        "selectedOption": "Участок некроза; Демаркационная зона; Кариолизис",
+        "selectedOptions": [
+          "Участок некроза",
+          "Демаркационная зона",
+          "Кариолизис"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0,
+          1,
+          2
+        ],
+        "correctOption": "Участок некроза",
+        "correctOptions": [
+          "Участок некроза",
+          "Демаркационная зона",
+          "Кариолизис"
+        ],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 2,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-text",
+        "type": "text",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "Демаркационная зона",
+        "selectedOptions": [],
+        "textAnswer": "Демаркационная зона",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "демаркационная зона",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-number",
+        "type": "number",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "numberAnswer": "2",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-matching",
+        "type": "matching",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {
+          "match-0": "match-0",
+          "match-1": "match-1",
+          "match-2": "match-2"
+        },
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 2,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-ordering",
+        "type": "ordering",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [
+          "order-0",
+          "order-1",
+          "order-2",
+          "order-3"
+        ],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 2,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-region",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 41.15,
+          "y": 37.41,
+          "width": 16.18,
+          "height": 12.47
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "demo-combined",
+        "type": "combined",
+        "selectedIndex": null,
+        "selectedOptionId": "combined-0",
+        "selectedOptionIds": [
+          "combined-0"
+        ],
+        "selectedOption": "Инфаркт миокарда",
+        "selectedOptions": [
+          "Инфаркт миокарда"
+        ],
+        "textAnswer": "Некроз",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Инфаркт миокарда",
+        "correctOptions": [
+          "Инфаркт миокарда"
+        ],
+        "correctText": "некроз",
+        "points": 2,
+        "earnedPoints": 2,
+        "needsReview": false,
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T16:26:55.630Z"
+  },
+  {
+    "id": "1780936363047-176733cde924a",
+    "diagnosticId": "demo-all-question-types",
+    "diagnosticTitle": "Демонстрация всех видов вопросов",
+    "studentName": "Закирова Маргарита Маратовна",
+    "group": "ОЛД-249",
+    "score": 7,
+    "total": 13,
+    "percent": 54,
+    "isAutoSubmitted": false,
+    "answers": [
+      {
+        "questionId": "demo-single",
+        "type": "single",
+        "selectedIndex": null,
+        "selectedOptionId": "single-0",
+        "selectedOptionIds": [
+          "single-0"
+        ],
+        "selectedOption": "Сердце",
+        "selectedOptions": [
+          "Сердце"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Сердце",
+        "correctOptions": [
+          "Сердце"
+        ],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 1,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-multiple",
+        "type": "multiple",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [
+          "multiple-0",
+          "multiple-3",
+          "multiple-2"
+        ],
+        "selectedOption": "Участок некроза; Альвеолярные перегородки; Кариолизис",
+        "selectedOptions": [
+          "Участок некроза",
+          "Альвеолярные перегородки",
+          "Кариолизис"
+        ],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0,
+          1,
+          2
+        ],
+        "correctOption": "Участок некроза",
+        "correctOptions": [
+          "Участок некроза",
+          "Демаркационная зона",
+          "Кариолизис"
+        ],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "demo-text",
+        "type": "text",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "гной",
+        "selectedOptions": [],
+        "textAnswer": "гной",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "демаркационная зона",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "demo-number",
+        "type": "number",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "numberAnswer": "3",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 1,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "demo-matching",
+        "type": "matching",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {
+          "match-0": "match-0",
+          "match-1": "match-1",
+          "match-2": "match-2"
+        },
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 2,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-ordering",
+        "type": "ordering",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [
+          "order-0",
+          "order-1",
+          "order-2",
+          "order-3"
+        ],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 2,
+        "needsReview": false,
+        "isCorrect": true
+      },
+      {
+        "questionId": "demo-region",
+        "type": "region",
+        "selectedIndex": null,
+        "selectedOptionId": "",
+        "selectedOptionIds": [],
+        "selectedOption": "",
+        "selectedOptions": [],
+        "textAnswer": "",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": {
+          "x": 26.03,
+          "y": 33.83,
+          "width": 34.29,
+          "height": 29.73
+        },
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "",
+        "correctOptions": [],
+        "correctText": "",
+        "points": 2,
+        "earnedPoints": 0,
+        "needsReview": false,
+        "isCorrect": false
+      },
+      {
+        "questionId": "demo-combined",
+        "type": "combined",
+        "selectedIndex": null,
+        "selectedOptionId": "combined-0",
+        "selectedOptionIds": [
+          "combined-0"
+        ],
+        "selectedOption": "Инфаркт миокарда",
+        "selectedOptions": [
+          "Инфаркт миокарда"
+        ],
+        "textAnswer": "Некроз",
+        "selectedPairs": {},
+        "orderedItemIds": [],
+        "selectedRegion": null,
+        "correctIndex": 0,
+        "correctIndices": [
+          0
+        ],
+        "correctOption": "Инфаркт миокарда",
+        "correctOptions": [
+          "Инфаркт миокарда"
+        ],
+        "correctText": "некроз",
+        "points": 2,
+        "earnedPoints": 2,
+        "needsReview": false,
+        "isCorrect": true
+      }
+    ],
+    "submittedAt": "2026-06-08T16:32:43.047Z"
+  }
+]

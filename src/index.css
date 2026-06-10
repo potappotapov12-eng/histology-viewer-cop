@@ -1,0 +1,19 @@
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow-x: hidden;
+  background: #f3f4f6;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}

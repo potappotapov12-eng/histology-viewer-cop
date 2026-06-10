@@ -1,0 +1,239 @@
+[
+  {
+    "id": "demo-all-question-types",
+    "title": "Демонстрация всех видов вопросов",
+    "startsAt": "2026-06-08T00:00:00.000Z",
+    "endsAt": "2030-12-31T23:59:00.000Z",
+    "durationMinutes": 30,
+    "isPublished": true,
+    "questions": [
+      {
+        "id": "demo-single",
+        "type": "single",
+        "slideId": "1",
+        "prompt": "Какой орган представлен на препарате?",
+        "answer": {
+          "type": "single",
+          "shuffle": true,
+          "options": [
+            { "id": "single-0", "text": "Сердце", "isCorrect": true },
+            { "id": "single-1", "text": "Печень", "isCorrect": false },
+            { "id": "single-2", "text": "Почка", "isCorrect": false },
+            { "id": "single-3", "text": "Легкое", "isCorrect": false },
+            { "id": "single-4", "text": "Селезенка", "isCorrect": false },
+            { "id": "single-5", "text": "Поджелудочная железа", "isCorrect": false }
+          ],
+          "correctText": "",
+          "acceptedTexts": [],
+          "numeric": { "correctValue": "", "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "pair-0", "left": "Структура 1", "right": "Ответ 1" },
+            { "id": "pair-1", "left": "Структура 2", "right": "Ответ 2" }
+          ],
+          "items": [
+            { "id": "item-0", "text": "Этап 1" },
+            { "id": "item-1", "text": "Этап 2" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 1, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 35, "y": 35, "width": 20, "height": 18 },
+        "regions": [{ "x": 35, "y": 35, "width": 20, "height": 18 }]
+      },
+      {
+        "id": "demo-multiple",
+        "type": "multiple",
+        "slideId": "1",
+        "prompt": "Какие признаки характерны для инфаркта миокарда? Выберите все правильные варианты.",
+        "answer": {
+          "type": "multiple",
+          "shuffle": true,
+          "options": [
+            { "id": "multiple-0", "text": "Участок некроза", "isCorrect": true },
+            { "id": "multiple-1", "text": "Демаркационная зона", "isCorrect": true },
+            { "id": "multiple-2", "text": "Кариолизис", "isCorrect": true },
+            { "id": "multiple-3", "text": "Альвеолярные перегородки", "isCorrect": false },
+            { "id": "multiple-4", "text": "Печеночные балки", "isCorrect": false },
+            { "id": "multiple-5", "text": "Клубочки почки", "isCorrect": false }
+          ],
+          "correctText": "",
+          "acceptedTexts": [],
+          "numeric": { "correctValue": "", "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "pair-0", "left": "Структура 1", "right": "Ответ 1" },
+            { "id": "pair-1", "left": "Структура 2", "right": "Ответ 2" }
+          ],
+          "items": [
+            { "id": "item-0", "text": "Этап 1" },
+            { "id": "item-1", "text": "Этап 2" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 2, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 35, "y": 35, "width": 20, "height": 18 },
+        "regions": [{ "x": 35, "y": 35, "width": 20, "height": 18 }]
+      },
+      {
+        "id": "demo-text",
+        "type": "text",
+        "slideId": "1",
+        "prompt": "Назовите зону вокруг очага некроза.",
+        "answer": {
+          "type": "text",
+          "shuffle": false,
+          "options": [],
+          "correctText": "демаркационная зона",
+          "acceptedTexts": ["демаркационная зона", "демаркационная"],
+          "numeric": { "correctValue": "", "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "pair-0", "left": "Структура 1", "right": "Ответ 1" },
+            { "id": "pair-1", "left": "Структура 2", "right": "Ответ 2" }
+          ],
+          "items": [
+            { "id": "item-0", "text": "Этап 1" },
+            { "id": "item-1", "text": "Этап 2" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 1, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 35, "y": 35, "width": 20, "height": 18 },
+        "regions": [{ "x": 35, "y": 35, "width": 20, "height": 18 }]
+      },
+      {
+        "id": "demo-number",
+        "type": "number",
+        "slideId": "1",
+        "prompt": "Сколько основных диагностических признаков указано для этого препарата?",
+        "answer": {
+          "type": "number",
+          "shuffle": false,
+          "options": [],
+          "correctText": "",
+          "acceptedTexts": [],
+          "numeric": { "correctValue": 2, "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "pair-0", "left": "Структура 1", "right": "Ответ 1" },
+            { "id": "pair-1", "left": "Структура 2", "right": "Ответ 2" }
+          ],
+          "items": [
+            { "id": "item-0", "text": "Этап 1" },
+            { "id": "item-1", "text": "Этап 2" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 1, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 35, "y": 35, "width": 20, "height": 18 },
+        "regions": [{ "x": 35, "y": 35, "width": 20, "height": 18 }]
+      },
+      {
+        "id": "demo-matching",
+        "type": "matching",
+        "slideId": "1",
+        "prompt": "Сопоставьте термин и его значение.",
+        "answer": {
+          "type": "matching",
+          "shuffle": true,
+          "options": [],
+          "correctText": "",
+          "acceptedTexts": [],
+          "numeric": { "correctValue": "", "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "match-0", "left": "Некроз", "right": "Гибель ткани" },
+            { "id": "match-1", "left": "Кариолизис", "right": "Растворение ядра" },
+            { "id": "match-2", "left": "Кариорексис", "right": "Распад ядра на фрагменты" }
+          ],
+          "items": [
+            { "id": "item-0", "text": "Этап 1" },
+            { "id": "item-1", "text": "Этап 2" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 2, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 35, "y": 35, "width": 20, "height": 18 },
+        "regions": [{ "x": 35, "y": 35, "width": 20, "height": 18 }]
+      },
+      {
+        "id": "demo-ordering",
+        "type": "ordering",
+        "slideId": "1",
+        "prompt": "Расположите этапы анализа препарата в правильном порядке.",
+        "answer": {
+          "type": "ordering",
+          "shuffle": true,
+          "options": [],
+          "correctText": "",
+          "acceptedTexts": [],
+          "numeric": { "correctValue": "", "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "pair-0", "left": "Структура 1", "right": "Ответ 1" },
+            { "id": "pair-1", "left": "Структура 2", "right": "Ответ 2" }
+          ],
+          "items": [
+            { "id": "order-0", "text": "Определить орган" },
+            { "id": "order-1", "text": "Найти патологический очаг" },
+            { "id": "order-2", "text": "Описать диагностические признаки" },
+            { "id": "order-3", "text": "Сформулировать диагноз" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 2, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 35, "y": 35, "width": 20, "height": 18 },
+        "regions": [{ "x": 35, "y": 35, "width": 20, "height": 18 }]
+      },
+      {
+        "id": "demo-region",
+        "type": "region",
+        "slideId": "1",
+        "prompt": "Выделите область, которую можно принять за очаг поражения. Для демонстрации задано две допустимые области.",
+        "answer": {
+          "type": "region",
+          "shuffle": false,
+          "options": [],
+          "correctText": "",
+          "acceptedTexts": [],
+          "numeric": { "correctValue": "", "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "pair-0", "left": "Структура 1", "right": "Ответ 1" },
+            { "id": "pair-1", "left": "Структура 2", "right": "Ответ 2" }
+          ],
+          "items": [
+            { "id": "item-0", "text": "Этап 1" },
+            { "id": "item-1", "text": "Этап 2" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 2, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 31, "y": 31, "width": 18, "height": 16 },
+        "regions": [
+          { "x": 31, "y": 31, "width": 18, "height": 16 },
+          { "x": 56, "y": 40, "width": 16, "height": 14 }
+        ]
+      },
+      {
+        "id": "demo-combined",
+        "type": "combined",
+        "slideId": "1",
+        "prompt": "Выберите патологический процесс и напишите основной морфологический термин.",
+        "answer": {
+          "type": "combined",
+          "shuffle": true,
+          "options": [
+            { "id": "combined-0", "text": "Инфаркт миокарда", "isCorrect": true },
+            { "id": "combined-1", "text": "Цирроз печени", "isCorrect": false },
+            { "id": "combined-2", "text": "Пневмония", "isCorrect": false },
+            { "id": "combined-3", "text": "Гломерулонефрит", "isCorrect": false }
+          ],
+          "correctText": "некроз",
+          "acceptedTexts": ["некроз", "коагуляционный некроз"],
+          "numeric": { "correctValue": "", "tolerance": 0, "min": "", "max": "" },
+          "pairs": [
+            { "id": "pair-0", "left": "Структура 1", "right": "Ответ 1" },
+            { "id": "pair-1", "left": "Структура 2", "right": "Ответ 2" }
+          ],
+          "items": [
+            { "id": "item-0", "text": "Этап 1" },
+            { "id": "item-1", "text": "Этап 2" }
+          ]
+        },
+        "grading": { "mode": "auto", "points": 2, "partialCredit": false, "regionMode": "intersection", "regionThreshold": 70 },
+        "highlight": { "x": 35, "y": 35, "width": 20, "height": 18 },
+        "regions": [{ "x": 35, "y": 35, "width": 20, "height": 18 }]
+      }
+    ],
+    "createdAt": "2026-06-08T16:10:00.000Z",
+    "updatedAt": "2026-06-08T16:10:00.000Z"
+  }
+]
