@@ -2034,13 +2034,25 @@ function AdminPage() {
                     )}
                   </div>
 
-                  {activeDiagnosticSlide && normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex] ? (
+                  {activeDiagnosticSlide ? (
                     <HighlightPicker
                       slide={activeDiagnosticSlide}
-                      highlight={normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex]}
-                      onChange={(highlight) =>
-                        setQuestionRegion(activeDiagnosticQuestionIndex, activeRegionIndex, highlight)
-                      }
+                      highlight={normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex] || null}
+                      onChange={(highlight) => {
+                        const normalizedQuestion = normalizeAdminQuestion(activeDiagnosticQuestion);
+
+                        if (normalizedQuestion.regions[activeRegionIndex]) {
+                          setQuestionRegion(activeDiagnosticQuestionIndex, activeRegionIndex, highlight);
+                          return;
+                        }
+
+                        updateDiagnosticQuestion(activeDiagnosticQuestionIndex, {
+                          highlight,
+                          region: highlight,
+                          regions: [highlight],
+                        });
+                        setActiveRegionIndex(0);
+                      }}
                     />
                   ) : (
                     <div className="highlightEmptyPreview">Выберите препарат</div>
