@@ -694,8 +694,8 @@ async function buildDiagnosticPayload(rawDiagnostic, { includeAnswers = false } 
                   : null,
             },
             grading: normalizedQuestion.grading,
-            region: normalizedQuestion.region,
-            regions: normalizedQuestion.regions,
+            region: includeAnswers ? normalizedQuestion.region : null,
+            regions: includeAnswers ? normalizedQuestion.regions : [],
             options: answerOptions.map((option) => option.text),
             optionIds: answerOptions.map((option) => option.id),
             highlight: normalizedQuestion.answer.type === 'region'
