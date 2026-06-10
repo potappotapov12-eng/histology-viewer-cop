@@ -562,24 +562,24 @@ function sanitizeDiagnosticQuestion(question, index) {
   };
   const pairs = normalizeMatchingPairs(question);
   const orderingItems = normalizeAnswerItems(question.answer?.items || question.orderingItems, 'item');
-  const regionSource = question.region || question.regions?.[0] || question.highlight || {
-    enabled: true,
-    type: 'rect',
-    x: 35,
-    y: 35,
-    width: 20,
-    height: 18,
-  };
-  const region = {
-    enabled: regionSource.enabled !== false,
-    ...normalizeSlideMarker(regionSource),
-  };
   const regions = Array.isArray(question.regions)
     ? question.regions.map((item) => ({
         enabled: item?.enabled !== false,
         ...normalizeSlideMarker(item),
       }))
-    : [region];
+    : [
+        {
+          enabled: (question.region || question.highlight)?.enabled !== false,
+          ...normalizeSlideMarker(question.region || question.highlight || {
+            type: 'rect',
+            x: 35,
+            y: 35,
+            width: 20,
+            height: 18,
+          }),
+        },
+      ];
+  const region = regions[0] || null;
   const points = Number(question.grading?.points);
 
   return {
