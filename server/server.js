@@ -564,6 +564,7 @@ function sanitizeDiagnosticQuestion(question, index) {
   const orderingItems = normalizeAnswerItems(question.answer?.items || question.orderingItems, 'item');
   const regionSource = question.region || question.regions?.[0] || question.highlight || {
     enabled: true,
+    type: 'rect',
     x: 35,
     y: 35,
     width: 20,
@@ -571,12 +572,12 @@ function sanitizeDiagnosticQuestion(question, index) {
   };
   const region = {
     enabled: regionSource.enabled !== false,
-    ...sanitizeHighlight(regionSource),
+    ...normalizeSlideMarker(regionSource),
   };
   const regions = Array.isArray(question.regions)
     ? question.regions.map((item) => ({
         enabled: item?.enabled !== false,
-        ...sanitizeHighlight(item),
+        ...normalizeSlideMarker(item),
       }))
     : [region];
   const points = Number(question.grading?.points);
@@ -849,11 +850,13 @@ function normalizeParticipantValue(value) {
 
 function rectOverlapPercentOfSelected(target, selected) {
   if (!target || !selected) return 0;
+  const targetBounds = getMarkerBounds(target);
+  if (!targetBounds) return 0;
 
-  const left = Math.max(Number(target.x), Number(selected.x));
-  const top = Math.max(Number(target.y), Number(selected.y));
-  const right = Math.min(Number(target.x) + Number(target.width), Number(selected.x) + Number(selected.width));
-  const bottom = Math.min(Number(target.y) + Number(target.height), Number(selected.y) + Number(selected.height));
+  const left = Math.max(Number(targetBounds.x), Number(selected.x));
+  const top = Math.max(Number(targetBounds.y), Number(selected.y));
+  const right = Math.min(Number(targetBounds.x) + Number(targetBounds.width), Number(selected.x) + Number(selected.width));
+  const bottom = Math.min(Number(targetBounds.y) + Number(targetBounds.height), Number(selected.y) + Number(selected.height));
   const width = Math.max(0, right - left);
   const height = Math.max(0, bottom - top);
   const intersectionArea = width * height;
@@ -864,16 +867,38 @@ function rectOverlapPercentOfSelected(target, selected) {
 
 function rectCenterInside(target, selected) {
   if (!target || !selected) return false;
+  const targetBounds = getMarkerBounds(target);
+  if (!targetBounds) return false;
 
   const centerX = Number(selected.x) + Number(selected.width) / 2;
   const centerY = Number(selected.y) + Number(selected.height) / 2;
 
   return (
-    centerX >= Number(target.x) &&
-    centerX <= Number(target.x) + Number(target.width) &&
-    centerY >= Number(target.y) &&
-    centerY <= Number(target.y) + Number(target.height)
+    centerX >= Number(targetBounds.x) &&
+    centerX <= Number(targetBounds.x) + Number(targetBounds.width) &&
+    centerY >= Number(targetBounds.y) &&
+    centerY <= Number(targetBounds.y) + Number(targetBounds.height)
   );
+}
+
+function getMarkerBounds(marker) {
+  if (!marker) return null;
+
+  if (marker.type === 'arrow') {
+    return {
+      x: Math.min(Number(marker.x1), Number(marker.x2)),
+      y: Math.min(Number(marker.y1), Number(marker.y2)),
+      width: Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1))),
+      height: Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1))),
+    };
+  }
+
+  return {
+    x: Number(marker.x),
+    y: Number(marker.y),
+    width: Number(marker.width),
+    height: Number(marker.height),
+  };
 }
 
 function gradeTextAnswer(question, textAnswer) {

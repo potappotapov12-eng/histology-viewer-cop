@@ -164,10 +164,15 @@ function addMarkerOverlay(viewer, marker) {
 }
 
 function addHighlightOverlay(viewer, highlight) {
-  return addMarkerOverlay(viewer, {
-    type: 'rect',
-    ...highlight,
-  });
+  return addMarkerOverlay(
+    viewer,
+    highlight?.type === 'arrow'
+      ? highlight
+      : {
+          type: 'rect',
+          ...highlight,
+        }
+  );
 }
 
 function getViewerImagePercentPoint(viewer, OpenSeadragon, event) {

@@ -484,6 +484,28 @@ function normalizeSlideDiagnosticSigns(signs) {
     .filter((sign) => sign.text || sign.marker);
 }
 
+function normalizeAdminMarker(marker) {
+  if (!marker) return null;
+
+  if (marker.type === 'arrow') {
+    return {
+      type: 'arrow',
+      x1: marker.x1 ?? marker.x ?? 35,
+      y1: marker.y1 ?? marker.y ?? 35,
+      x2: marker.x2 ?? 55,
+      y2: marker.y2 ?? 45,
+    };
+  }
+
+  return {
+    type: 'rect',
+    x: marker.x ?? 35,
+    y: marker.y ?? 35,
+    width: marker.width ?? 20,
+    height: marker.height ?? 18,
+  };
+}
+
 function questionsToText(questions) {
   if (!Array.isArray(questions)) return '';
   return questions.join('\n');
@@ -512,9 +534,9 @@ function normalizeAdminQuestion(question) {
     };
   });
 
-  const fallbackHighlight = question.region || question.highlight || { x: 35, y: 35, width: 20, height: 18 };
+  const fallbackHighlight = normalizeAdminMarker(question.region || question.highlight) || { type: 'rect', x: 35, y: 35, width: 20, height: 18 };
   const regions = Array.isArray(question.regions)
-    ? question.regions
+    ? question.regions.map((region) => normalizeAdminMarker(region)).filter(Boolean)
     : [fallbackHighlight];
 
   return {
@@ -1029,7 +1051,38 @@ function AdminPage() {
   const setQuestionRegion = (questionIndex, regionIndex, region) => {
     const question = normalizeAdminQuestion(diagnosticForm.questions[questionIndex]);
     const nextRegions = question.regions.map((item, index) =>
-      index === regionIndex ? region : item
+      index === regionIndex ? normalizeAdminMarker(region) : item
+    );
+
+    updateDiagnosticQuestion(questionIndex, {
+      highlight: nextRegions[0],
+      region: nextRegions[0],
+      regions: nextRegions,
+    });
+  };
+
+  const changeQuestionRegionType = (questionIndex, regionIndex, markerType) => {
+    const question = normalizeAdminQuestion(diagnosticForm.questions[questionIndex]);
+    const currentMarker = question.regions[regionIndex] || question.highlight;
+    const nextMarker = normalizeAdminMarker(
+      markerType === 'arrow'
+        ? {
+            type: 'arrow',
+            x1: currentMarker?.x1 ?? currentMarker?.x ?? 35,
+            y1: currentMarker?.y1 ?? currentMarker?.y ?? 35,
+            x2: currentMarker?.x2 ?? 55,
+            y2: currentMarker?.y2 ?? 45,
+          }
+        : {
+            type: 'rect',
+            x: currentMarker?.x ?? currentMarker?.x1 ?? 35,
+            y: currentMarker?.y ?? currentMarker?.y1 ?? 35,
+            width: currentMarker?.width ?? 20,
+            height: currentMarker?.height ?? 18,
+          }
+    );
+    const nextRegions = question.regions.map((item, index) =>
+      index === regionIndex ? nextMarker : item
     );
 
     updateDiagnosticQuestion(questionIndex, {
@@ -1041,18 +1094,25 @@ function AdminPage() {
 
   const addQuestionRegion = (questionIndex) => {
     const question = normalizeAdminQuestion(diagnosticForm.questions[questionIndex]);
-    const baseRegion =
+    const baseRegion = normalizeAdminMarker(
       question.regions[Math.min(activeRegionIndex, Math.max(0, question.regions.length - 1))] ||
       question.highlight ||
-      { x: 35, y: 35, width: 20, height: 18 };
-    const nextRegions = [
-      ...question.regions,
-      {
-        ...baseRegion,
-        x: Math.min(95, Number(baseRegion.x || 0) + 3),
-        y: Math.min(95, Number(baseRegion.y || 0) + 3),
-      },
-    ];
+      { type: 'rect', x: 35, y: 35, width: 20, height: 18 }
+    );
+    const nextRegion = baseRegion.type === 'arrow'
+      ? {
+          ...baseRegion,
+          x1: Math.min(95, Number(baseRegion.x1 || 0) + 3),
+          y1: Math.min(95, Number(baseRegion.y1 || 0) + 3),
+          x2: Math.min(100, Number(baseRegion.x2 || 0) + 3),
+          y2: Math.min(100, Number(baseRegion.y2 || 0) + 3),
+        }
+      : {
+          ...baseRegion,
+          x: Math.min(95, Number(baseRegion.x || 0) + 3),
+          y: Math.min(95, Number(baseRegion.y || 0) + 3),
+        };
+    const nextRegions = [...question.regions, nextRegion];
 
     updateDiagnosticQuestion(questionIndex, {
       highlight: nextRegions[0],
@@ -2225,11 +2285,11 @@ function AdminPage() {
                         normalizeAdminQuestion(activeDiagnosticQuestion).regions.map((region, regionIndex) => (
                           <button
                             type="button"
-                            key={`${regionIndex}-${region.x}-${region.y}`}
+                            key={`${regionIndex}-${region.type}-${region.x ?? region.x1}-${region.y ?? region.y1}`}
                             className={regionIndex === activeRegionIndex ? 'active' : ''}
                             onClick={() => setActiveRegionIndex(regionIndex)}
                           >
-                            Область {regionIndex + 1}
+                            {region.type === 'arrow' ? 'Стрелка' : 'Область'} {regionIndex + 1}
                           </button>
                         ))
                       ) : (
@@ -2247,6 +2307,22 @@ function AdminPage() {
                       <button
                         type="button"
                         className="adminSecondaryButton"
+                        disabled={!normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex]}
+                        onClick={() => changeQuestionRegionType(activeDiagnosticQuestionIndex, activeRegionIndex, 'rect')}
+                      >
+                        Прямоугольник
+                      </button>
+                      <button
+                        type="button"
+                        className="adminSecondaryButton"
+                        disabled={!normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex]}
+                        onClick={() => changeQuestionRegionType(activeDiagnosticQuestionIndex, activeRegionIndex, 'arrow')}
+                      >
+                        Стрелка
+                      </button>
+                      <button
+                        type="button"
+                        className="adminSecondaryButton"
                         disabled={normalizeAdminQuestion(activeDiagnosticQuestion).regions.length === 0}
                         onClick={() => removeQuestionRegion(activeDiagnosticQuestionIndex, activeRegionIndex)}
                       >
@@ -2255,7 +2331,11 @@ function AdminPage() {
                     </div>
                     {normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex] ? (
                       <div className="highlightGrid">
-                        {['x', 'y', 'width', 'height'].map((field) => (
+                        {(
+                          normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex]?.type === 'arrow'
+                            ? ['x1', 'y1', 'x2', 'y2']
+                            : ['x', 'y', 'width', 'height']
+                        ).map((field) => (
                           <label key={field}>
                             {field}
                             <input
@@ -2284,6 +2364,7 @@ function AdminPage() {
                     <HighlightPicker
                       slide={activeDiagnosticSlide}
                       highlight={normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex] || null}
+                      markerType={normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex]?.type || 'rect'}
                       onChange={(highlight) => {
                         const normalizedQuestion = normalizeAdminQuestion(activeDiagnosticQuestion);
 
@@ -2293,9 +2374,9 @@ function AdminPage() {
                         }
 
                         updateDiagnosticQuestion(activeDiagnosticQuestionIndex, {
-                          highlight,
-                          region: highlight,
-                          regions: [highlight],
+                          highlight: normalizeAdminMarker(highlight),
+                          region: normalizeAdminMarker(highlight),
+                          regions: [normalizeAdminMarker(highlight)],
                         });
                         setActiveRegionIndex(0);
                       }}
