@@ -76,6 +76,12 @@ function createHighlightElement() {
   return element;
 }
 
+function createSelectedRegionElement() {
+  const element = document.createElement('div');
+  element.className = 'selectedRegionOverlay';
+  return element;
+}
+
 function createArrowElement(marker) {
   const element = document.createElement('div');
   element.className = 'arrowMarkerOverlay';
@@ -179,6 +185,23 @@ function addHighlightOverlay(viewer, highlight) {
           ...highlight,
         }
   );
+}
+
+function addSelectedRegionOverlay(viewer, region) {
+  const rect = getMarkerViewportRect(viewer, {
+    type: 'rect',
+    ...region,
+  });
+  if (!viewer || !region || !rect) return null;
+
+  const element = createSelectedRegionElement();
+
+  viewer.addOverlay({
+    element,
+    location: rect,
+  });
+
+  return element;
 }
 
 function getViewerImagePercentPoint(viewer, OpenSeadragon, event) {
@@ -326,7 +349,7 @@ function SlideViewer({
     }
 
     if (selectedRegion) {
-      selectedOverlayRef.current = addHighlightOverlay(viewer, selectedRegion);
+      selectedOverlayRef.current = addSelectedRegionOverlay(viewer, selectedRegion);
     }
 
     return () => {
@@ -1087,6 +1110,10 @@ function DiagnosticPage() {
         }
 
         setDiagnostic(data);
+        setAnswers({});
+        setActiveIndex(0);
+        setResult(null);
+        setSubmitError('');
         if (isPreviewMode) {
           setStudent({
             studentName: 'Предпросмотр',

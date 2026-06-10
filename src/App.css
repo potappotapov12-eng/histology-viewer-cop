@@ -1161,6 +1161,13 @@ a:focus-visible {
   pointer-events: none;
 }
 
+.selectedRegionOverlay {
+  border: 3px dashed #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
 .arrowMarkerOverlay {
   border: 0;
   background: transparent;
