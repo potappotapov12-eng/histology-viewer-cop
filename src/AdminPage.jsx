@@ -1587,7 +1587,7 @@ function AdminPage() {
       <main className="adminLayout">
         {activeAdminTab === 'slides' && (
         <>
-        <section className="adminCard">
+        <section className="adminCard slideFormCard">
           <div className="adminCardHeader">
             <div>
               <h2>{isEditing ? 'Редактировать препарат' : 'Добавить препарат'}</h2>
@@ -1844,7 +1844,7 @@ function AdminPage() {
           </form>
         </section>
 
-        <section className="adminCard">
+        <section className="adminCard slideListCard">
           <h2>Список препаратов</h2>
 
           <div className="adminSlideList">
@@ -1861,7 +1861,11 @@ function AdminPage() {
                 </div>
 
                 <div className="adminSlideActions">
-                  <button type="button" onClick={() => startEdit(slide)}>
+                  <button
+                    type="button"
+                    className="adminSecondaryButton"
+                    onClick={() => startEdit(slide)}
+                  >
                     Редактировать
                   </button>
 
@@ -2540,10 +2544,18 @@ function AdminPage() {
                 </div>
 
                 <div className="adminSlideActions">
-                  <button type="button" onClick={() => startDiagnosticEdit(diagnostic)}>
+                  <button
+                    type="button"
+                    className="adminSecondaryButton"
+                    onClick={() => startDiagnosticEdit(diagnostic)}
+                  >
                     Редактировать
                   </button>
-                  <button type="button" onClick={() => loadDiagnosticResults(diagnostic)}>
+                  <button
+                    type="button"
+                    className="adminSecondaryButton"
+                    onClick={() => loadDiagnosticResults(diagnostic)}
+                  >
                     Результаты
                   </button>
                   <a

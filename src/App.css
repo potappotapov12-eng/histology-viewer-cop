@@ -1383,6 +1383,337 @@ a:focus-visible {
   }
 }
 
+/* Альтернативный дизайн админ-панели */
+
+.adminPage {
+  background: #eef2f7;
+}
+
+.adminHeader {
+  padding: 22px max(28px, calc((100vw - 1480px) / 2 + 28px));
+  background: #111827;
+}
+
+.adminHeader h1 {
+  font-size: 27px;
+  line-height: 1.1;
+}
+
+.adminHeader p {
+  margin-top: 5px;
+}
+
+.adminBackLink {
+  min-height: 38px;
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: #c81e1e;
+}
+
+.adminTabs {
+  width: min(1480px, calc(100% - 56px));
+  margin: 16px auto 0;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.adminTabs button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  background: transparent;
+}
+
+.adminTabs button.active {
+  background: #b91c1c;
+  box-shadow: 0 8px 18px rgba(185, 28, 28, 0.18);
+}
+
+.adminLayout {
+  width: min(1480px, calc(100% - 56px));
+  margin: 0 auto;
+  padding: 28px 0;
+  grid-template-columns: minmax(0, 1.18fr) minmax(360px, 0.82fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.adminCard {
+  border-radius: 14px;
+  padding: 20px 22px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+}
+
+.slideListCard,
+.diagnosticsListCard {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+
+.diagnosticsEditor,
+.resultsReviewCard {
+  grid-column: 1 / -1;
+}
+
+.adminCardHeader {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.adminCardHeader.compact {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.adminCard h2 {
+  margin-bottom: 14px;
+  font-size: 24px;
+}
+
+.adminCardHeader h3 {
+  font-size: 17px;
+}
+
+.adminForm {
+  gap: 12px;
+}
+
+.adminForm label {
+  gap: 6px;
+  font-size: 14px;
+}
+
+.adminForm input,
+.adminForm textarea,
+.adminForm select,
+.diagnosticLogin input {
+  min-height: 38px;
+  border-radius: 9px;
+  padding: 8px 11px;
+}
+
+.adminForm textarea {
+  min-height: 96px;
+}
+
+.adminForm input[type="file"] {
+  padding: 7px 10px;
+}
+
+.adminGridTwo,
+.diagnosticOptionsEditor,
+.answerConfigGrid,
+.questionSettingsGrid {
+  gap: 12px;
+}
+
+.slideSignsEditor,
+.correctAnswersEditor,
+.structuredAnswerEditor,
+.diagnosticQuestionEditor,
+.highlightEditor {
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.slideSignsEditor {
+  gap: 10px;
+  padding: 12px;
+}
+
+.slideSignItem {
+  grid-template-columns: 140px minmax(0, 1fr) auto;
+  border-radius: 9px;
+  padding: 7px;
+}
+
+.slideSignItem.active {
+  border-color: #fca5a5;
+  background: #fff7ed;
+}
+
+.highlightPicker {
+  min-height: 460px;
+  border-radius: 12px;
+}
+
+.adminSlideList {
+  gap: 9px;
+}
+
+.adminSlideItem {
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.adminSlideItem strong {
+  line-height: 1.25;
+}
+
+.adminSlideItem span {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.adminSlideActions {
+  gap: 6px;
+}
+
+.adminForm button,
+.adminSlideItem button,
+.adminSecondaryButton,
+.adminActionLink,
+.diagnosticDraftBar .adminSecondaryButton {
+  min-height: 36px;
+  border-radius: 9px;
+  padding: 8px 11px;
+}
+
+.adminSlideItem .adminSecondaryButton {
+  background: #f8fafc;
+  color: #111827;
+}
+
+.adminDangerButton {
+  background: #8f1d1d !important;
+}
+
+.adminPrimarySubmit {
+  align-self: flex-start;
+  min-width: 180px;
+}
+
+.formActions {
+  padding-top: 2px;
+}
+
+.diagnosticDraftBar {
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.diagnosticDraftBar span {
+  font-size: 14px;
+}
+
+.validationPanel {
+  position: relative;
+  padding: 10px 12px 10px 16px;
+  border-radius: 10px;
+}
+
+.validationPanel::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 7px;
+  width: 3px;
+  border-radius: 999px;
+  background: #f59e0b;
+}
+
+.validationPanel.blocking::before {
+  background: #b91c1c;
+}
+
+.validationPanel ul {
+  margin-top: 6px;
+}
+
+.diagnosticQuestionsTabs {
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.diagnosticQuestionsTabs button {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.diagnosticQuestionsTabs .addQuestionButton {
+  min-width: 104px;
+}
+
+.diagnosticQuestionEditor {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+}
+
+.optionEditorRow {
+  grid-template-columns: minmax(0, 1fr) 92px;
+}
+
+.highlightEditor {
+  grid-template-columns: 320px minmax(0, 1fr);
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+}
+
+.resultsReviewLayout {
+  align-items: start;
+}
+
+.resultsList {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+
+@media (max-width: 1180px) {
+  .adminLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .slideListCard,
+  .diagnosticsListCard,
+  .resultsList {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .adminHeader {
+    padding: 18px;
+  }
+
+  .adminTabs,
+  .adminLayout {
+    width: calc(100% - 32px);
+  }
+
+  .adminLayout {
+    padding: 18px 0;
+  }
+
+  .adminCard {
+    padding: 16px;
+  }
+
+  .slideSignItem,
+  .optionEditorRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 /* Статус и прогресс обработки в админ-панели */
 
@@ -2476,5 +2807,57 @@ a:focus-visible {
 
   .optionEditorRow {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Финальный слой админского редизайна */
+
+.slideListCard,
+.diagnosticsListCard {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+
+.diagnosticsListCard,
+.diagnosticsEditor,
+.resultsReviewCard {
+  grid-column: 1 / -1;
+}
+
+.adminPage .adminSecondaryButton,
+.adminPage .adminActionLink {
+  min-height: 36px;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #111827;
+  padding: 8px 11px;
+}
+
+.adminPage .adminSecondaryButton:not(:disabled):hover,
+.adminPage .adminActionLink:hover {
+  border-color: #cbd5e1;
+  background: #eef2f7;
+  color: #111827;
+}
+
+.adminPage .adminDangerButton {
+  min-height: 36px;
+  border-radius: 9px;
+  background: #8f1d1d !important;
+  padding: 8px 11px;
+}
+
+.adminPage .adminPrimarySubmit {
+  align-self: flex-start;
+  min-width: 180px;
+}
+
+@media (max-width: 1180px) {
+  .slideListCard,
+  .diagnosticsListCard {
+    position: static;
+    max-height: none;
   }
 }
