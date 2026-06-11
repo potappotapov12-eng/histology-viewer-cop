@@ -3023,6 +3023,39 @@ a:focus-visible {
   display: none;
 }
 
+.highlightEditor .highlightRegionActions .iconTooltipButton:first-child::after {
+  left: 0;
+  transform: translateY(4px);
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton:first-child::before {
+  left: 18px;
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton:first-child:hover::after,
+.highlightEditor .highlightRegionActions .iconTooltipButton:first-child:focus-visible::after {
+  transform: translateY(0);
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton:last-child::after {
+  right: 0;
+  left: auto;
+  transform: translateY(4px);
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton:last-child::before {
+  right: 18px;
+  left: auto;
+  transform: translateY(4px);
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton:last-child:hover::after,
+.highlightEditor .highlightRegionActions .iconTooltipButton:last-child:focus-visible::after,
+.highlightEditor .highlightRegionActions .iconTooltipButton:last-child:hover::before,
+.highlightEditor .highlightRegionActions .iconTooltipButton:last-child:focus-visible::before {
+  transform: translateY(0);
+}
+
 .highlightEditor .regionTabs {
   display: flex;
   flex-wrap: wrap;
