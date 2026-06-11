@@ -2861,3 +2861,101 @@ a:focus-visible {
     max-height: none;
   }
 }
+
+/* Выравнивание действий в админских списках и редакторе областей */
+
+.slideListCard .adminSlideItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 144px;
+  align-items: center;
+}
+
+.slideListCard .adminSlideActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 144px;
+  justify-content: stretch;
+}
+
+.slideListCard .adminSlideActions > * {
+  width: 100%;
+}
+
+.diagnosticAdminItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.diagnosticAdminItem .adminSlideActions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  width: 100%;
+  margin-top: 10px;
+}
+
+.diagnosticAdminItem .adminSlideActions > * {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.highlightEditor {
+  grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr);
+  overflow: hidden;
+}
+
+.highlightEditor > * {
+  min-width: 0;
+}
+
+.highlightEditor .highlightPicker {
+  min-width: 0;
+}
+
+.regionActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.regionActions .adminSecondaryButton {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.regionTabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, max-content));
+}
+
+.regionTabs button {
+  min-width: 104px;
+}
+
+.highlightGrid {
+  grid-template-columns: repeat(4, minmax(64px, 1fr));
+}
+
+@media (max-width: 1320px) {
+  .highlightEditor {
+    grid-template-columns: 1fr;
+  }
+
+  .highlightEditor .highlightPicker {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 640px) {
+  .slideListCard .adminSlideItem {
+    grid-template-columns: 1fr;
+  }
+
+  .slideListCard .adminSlideActions {
+    width: 100%;
+  }
+
+  .regionActions,
+  .highlightGrid {
+    grid-template-columns: 1fr;
+  }
+}
