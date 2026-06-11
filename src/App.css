@@ -2912,23 +2912,39 @@ a:focus-visible {
   min-width: 0;
 }
 
-.regionActions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.highlightEditor .regionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
-.regionActions .adminSecondaryButton {
-  width: 100%;
+.highlightEditor .regionActions .adminSecondaryButton {
+  width: auto;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 10px;
   white-space: nowrap;
 }
 
-.regionTabs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(104px, max-content));
+.highlightEditor .regionActions .adminSecondaryButton:last-child {
+  margin-left: auto;
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #7f1d1d;
 }
 
-.regionTabs button {
-  min-width: 104px;
+.highlightEditor .regionTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.highlightEditor .regionTabs button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 10px;
 }
 
 .highlightGrid {
@@ -2954,8 +2970,13 @@ a:focus-visible {
     width: 100%;
   }
 
-  .regionActions,
   .highlightGrid {
     grid-template-columns: 1fr;
+  }
+
+  .highlightEditor .regionActions .adminSecondaryButton,
+  .highlightEditor .regionActions .adminSecondaryButton:last-child {
+    width: 100%;
+    margin-left: 0;
   }
 }
