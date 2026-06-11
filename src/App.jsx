@@ -678,41 +678,46 @@ function ViewerControls({
 }) {
   return (
     <div className="controls" aria-label="Управление просмотром препарата">
-      <button type="button" onClick={onZoomOut} title="Уменьшить" aria-label="Уменьшить масштаб">
-        −
-      </button>
-      <button type="button" onClick={onResetView} title="Общий вид" aria-label="Вернуться к общему виду">
-        Общий вид
-      </button>
-      <button type="button" onClick={onZoomIn} title="Увеличить" aria-label="Увеличить масштаб">
-        +
-      </button>
-      <button
-        type="button"
-        onClick={onToggleInfo}
-        title="Показать или скрыть описание"
-        aria-label="Показать или скрыть описание препарата"
-      >
-        {isInfoVisible ? 'Скрыть' : 'Описание'}
-      </button>
-      <button
-        type="button"
-        className={isSelfTestMode ? 'activeControl' : ''}
-        onClick={onToggleSelfTest}
-        title="Режим самопроверки"
-        aria-label="Включить или выключить режим самопроверки"
-        aria-pressed={isSelfTestMode}
-      >
-        {isSelfTestMode ? 'Выйти' : 'Самопроверка'}
-      </button>
-      <button
-        type="button"
-        onClick={onToggleFullScreen}
-        title="Полноэкранный режим"
-        aria-label="Открыть полноэкранный режим"
-      >
-        ⛶
-      </button>
+      <div className="controlGroup" aria-label="Масштаб">
+        <button type="button" onClick={onZoomOut} title="Уменьшить" aria-label="Уменьшить масштаб">
+          −
+        </button>
+        <button type="button" onClick={onResetView} title="Общий вид" aria-label="Вернуться к общему виду">
+          Общий вид
+        </button>
+        <button type="button" onClick={onZoomIn} title="Увеличить" aria-label="Увеличить масштаб">
+          +
+        </button>
+      </div>
+      <div className="controlGroup" aria-label="Режимы просмотра">
+        <button
+          type="button"
+          onClick={onToggleInfo}
+          title="Показать или скрыть описание"
+          aria-label="Показать или скрыть описание препарата"
+        >
+          {isInfoVisible ? 'Скрыть' : 'Описание'}
+        </button>
+        <button
+          type="button"
+          className={isSelfTestMode ? 'activeControl' : ''}
+          onClick={onToggleSelfTest}
+          title="Режим самопроверки"
+          aria-label="Включить или выключить режим самопроверки"
+          aria-pressed={isSelfTestMode}
+        >
+          {isSelfTestMode ? 'Выйти' : 'Самопроверка'}
+        </button>
+        <button
+          type="button"
+          className="iconControl"
+          onClick={onToggleFullScreen}
+          title="Полноэкранный режим"
+          aria-label="Открыть полноэкранный режим"
+        >
+          ⛶
+        </button>
+      </div>
     </div>
   );
 }
@@ -1135,7 +1140,7 @@ function ViewerApp() {
             <p>
               {isAnswerHidden
                 ? 'Название, раздел, орган и диагностические признаки скрыты'
-                : `${getSlideSystem(selectedSlide)} · ${getSlideOrgan(selectedSlide)} · ${getSlideStain(selectedSlide)}`}
+                : `${getSlideLesson(selectedSlide)} · ${getSlideSystem(selectedSlide)} · ${getSlideOrgan(selectedSlide)} · ${getSlideStain(selectedSlide)}`}
             </p>
           </div>
 
@@ -1152,7 +1157,7 @@ function ViewerApp() {
         </header>
 
         {filteredSlides.length > 0 ? (
-          <>
+          <div className={isInfoVisible ? 'atlasWorkspace' : 'atlasWorkspace infoCollapsed'}>
             <section className="viewerWrap">
               <div ref={viewerElementRef} className="viewer" />
             </section>
@@ -1166,7 +1171,7 @@ function ViewerApp() {
                 onSelectMarker={setActiveMarker}
               />
             )}
-          </>
+          </div>
         ) : (
           <section className="notFound">
             <h2>Препараты не найдены</h2>

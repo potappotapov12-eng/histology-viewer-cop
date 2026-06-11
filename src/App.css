@@ -1119,6 +1119,270 @@ a:focus-visible {
   }
 }
 
+/* Альтернативный дизайн атласа */
+
+.app {
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.sidebar {
+  gap: 14px;
+  padding: 22px 20px;
+  background: #111827;
+}
+
+.brandLogo {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+}
+
+.brand h1 {
+  font-size: 19px;
+}
+
+.searchBlock,
+.filterBlock {
+  gap: 6px;
+}
+
+.searchBlock label,
+.filterBlock label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.searchBlock input,
+.filterBlock select {
+  height: 40px;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.slideCounter {
+  padding: 0;
+  font-size: 13px;
+}
+
+.slideList {
+  gap: 8px;
+}
+
+.systemTitle {
+  margin-top: 10px;
+  color: #fca5a5;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.slideCard {
+  min-height: 68px;
+  border-radius: 8px;
+  background: #1f2937;
+  padding: 9px 11px;
+}
+
+.slideCard:hover {
+  background: #273449;
+}
+
+.slideCard.active {
+  border-color: #475569;
+  border-left: 4px solid #fca5a5;
+  background: #263244;
+  box-shadow: none;
+}
+
+.topbar {
+  min-height: 104px;
+  padding: 18px 28px;
+  align-items: flex-start;
+}
+
+.badge {
+  height: 24px;
+  border-radius: 8px;
+}
+
+.topbar h2 {
+  font-size: clamp(24px, 2vw, 32px);
+}
+
+.controls {
+  align-items: center;
+  gap: 10px;
+}
+
+.controlGroup {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.controls button {
+  min-width: 42px;
+  height: 36px;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+
+.controls .iconControl {
+  width: 38px;
+  padding: 0;
+}
+
+.atlasWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: 18px;
+  padding: 18px 28px 28px;
+  align-items: start;
+}
+
+.atlasWorkspace.infoCollapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.atlasWorkspace .viewerWrap {
+  padding: 0;
+  min-width: 0;
+}
+
+.viewer {
+  height: calc(100vh - 160px);
+  min-height: 520px;
+  border-radius: 16px;
+  background: #e5e7eb;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.12);
+}
+
+.infoHidden .viewer {
+  height: calc(100vh - 160px);
+  min-height: 560px;
+}
+
+.infoHidden .viewerWrap {
+  padding-bottom: 0;
+}
+
+.atlasWorkspace .info {
+  position: sticky;
+  top: 122px;
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  margin: 0;
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.infoHeader {
+  margin-bottom: 12px;
+}
+
+.infoHeader h3 {
+  font-size: 18px;
+}
+
+.descriptionCard,
+.diagnosticBlock,
+.metaGrid div {
+  border-radius: 8px;
+}
+
+.descriptionCard {
+  padding: 14px;
+}
+
+.diagnosticBlock {
+  margin-top: 12px;
+  padding: 14px;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.diagnosticBlock h3 {
+  font-size: 16px;
+}
+
+.metaGrid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.metaGrid div {
+  padding: 11px 12px;
+  background: #f9fafb;
+}
+
+@media (max-width: 1280px) {
+  .atlasWorkspace {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .atlasWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .atlasWorkspace .info {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .app {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar {
+    padding: 16px;
+  }
+
+  .atlasWorkspace {
+    padding: 16px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .controlGroup {
+    flex: 1 1 260px;
+  }
+
+  .controlGroup button {
+    flex: 1 1 auto;
+  }
+
+  .viewer,
+  .infoHidden .viewer {
+    height: 60vh;
+    min-height: 360px;
+    border-radius: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .controlGroup {
+    flex-basis: 100%;
+  }
+
+  .viewer,
+  .infoHidden .viewer {
+    height: 56vh;
+    min-height: 320px;
+  }
+}
+
 
 /* Статус и прогресс обработки в админ-панели */
 
