@@ -3062,37 +3062,29 @@ a:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
-  align-items: center;
+  align-items: start;
 }
 
 .diagnosticsListCard .diagnosticAdminItem .adminSlideActions {
-  display: flex;
-  width: auto;
-  max-width: 680px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: 132px 112px 142px 58px 74px 96px;
+  width: max-content;
+  max-width: none;
+  justify-content: end;
+  align-items: stretch;
   gap: 8px;
   margin-top: 0;
 }
 
 .diagnosticsListCard .diagnosticAdminItem .adminSlideActions > * {
-  width: auto;
-  min-width: 108px;
+  width: 100%;
+  min-width: 0;
   height: 38px;
-  flex: 0 0 auto;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   white-space: nowrap;
-}
-
-.diagnosticsListCard .diagnosticAdminItem .adminSlideActions > *:nth-child(4) {
-  min-width: 58px;
-}
-
-.diagnosticsListCard .diagnosticAdminItem .adminSlideActions > *:nth-child(5) {
-  min-width: 74px;
-}
-
-.diagnosticsListCard .diagnosticAdminItem .adminSlideActions > *:last-child {
-  min-width: 96px;
 }
 
 @media (max-width: 1280px) {
@@ -3102,13 +3094,19 @@ a:focus-visible {
   }
 
   .diagnosticsListCard .diagnosticAdminItem .adminSlideActions {
+    width: 100%;
+    grid-template-columns: repeat(6, minmax(0, max-content));
     justify-content: flex-start;
   }
 }
 
 @media (max-width: 640px) {
   .diagnosticsListCard .diagnosticAdminItem .adminSlideActions > * {
-    flex: 1 1 140px;
+    width: 100%;
+  }
+
+  .diagnosticsListCard .diagnosticAdminItem .adminSlideActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
