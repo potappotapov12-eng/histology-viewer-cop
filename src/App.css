@@ -3084,7 +3084,14 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-top: 0;
+  line-height: 1;
   white-space: nowrap;
+}
+
+.diagnosticsListCard .diagnosticAdminItem .adminSlideActions a {
+  display: inline-flex;
+  margin-top: 0;
 }
 
 @media (max-width: 1280px) {
