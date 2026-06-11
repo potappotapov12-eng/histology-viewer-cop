@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 const INITIAL_FORM = {
   id: '',
   title: '',
+  lesson: '',
   system: '',
   organ: '',
   stain: 'H&E',
@@ -679,6 +680,7 @@ function getSlideSearchText(slide) {
   return [
     slide?.id,
     slide?.title,
+    slide?.lesson,
     slide?.system,
     slide?.organ,
     slide?.stain,
@@ -985,6 +987,7 @@ function AdminPage() {
     setForm({
       id: slide.id || '',
       title: slide.title || '',
+      lesson: slide.lesson || '',
       system: slide.system || '',
       organ: slide.organ || '',
       stain: slide.stain || 'H&E',
@@ -1628,6 +1631,15 @@ function AdminPage() {
             </label>
 
             <label>
+              Занятие
+              <input
+                value={form.lesson}
+                onChange={(event) => updateField('lesson', event.target.value)}
+                placeholder="Например: Занятие 1. Сердечно-сосудистая система"
+              />
+            </label>
+
+            <label>
               Раздел / система
               <input
                 value={form.system}
@@ -1841,6 +1853,7 @@ function AdminPage() {
                 <div>
                   <strong>{slide.title}</strong>
                   <span>
+                    {slide.lesson ? `${slide.lesson} · ` : ''}
                     {slide.system || 'Без раздела'} ·{' '}
                     {slide.organ || 'Орган не указан'} ·{' '}
                     {slide.stain || 'Окраска не указана'}

@@ -4,6 +4,8 @@ import './App.css';
 const AdminPage = lazy(() => import('./AdminPage'));
 
 const ALL_ORGANS_OPTION = 'Все';
+const ALL_LESSONS_OPTION = 'Все занятия';
+const NO_LESSON_OPTION = 'Без занятия';
 const DEFAULT_SYSTEM = 'Без раздела';
 
 function toSearchText(value) {
@@ -24,6 +26,10 @@ function getSlideStain(slide) {
 
 function getSlideSystem(slide) {
   return slide?.system || DEFAULT_SYSTEM;
+}
+
+function getSlideLesson(slide) {
+  return slide?.lesson || NO_LESSON_OPTION;
 }
 
 function normalizeDiagnosticSign(sign) {
@@ -567,13 +573,16 @@ const SlideCard = memo(function SlideCard({ slide, isActive, onSelect }) {
 
 const Sidebar = memo(function Sidebar({
   organs,
+  lessons,
   groupedSlides,
   selectedSlideId,
   filteredCount,
   searchQuery,
   selectedOrgan,
+  selectedLesson,
   onSearchChange,
   onOrganChange,
+  onLessonChange,
   onSelectSlide,
 }) {
   return (
@@ -595,6 +604,21 @@ const Sidebar = memo(function Sidebar({
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
         />
+      </div>
+
+      <div className="filterBlock">
+        <label htmlFor="lessonFilter">Занятие</label>
+        <select
+          id="lessonFilter"
+          value={selectedLesson}
+          onChange={(event) => onLessonChange(event.target.value)}
+        >
+          {lessons.map((lesson) => (
+            <option key={lesson} value={lesson}>
+              {lesson}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="filterBlock">
@@ -786,6 +810,10 @@ function SlideInfo({ slide, isAnswerHidden, activeMarker, onRevealAnswer, onSele
           <strong>{getSlideSystem(slide)}</strong>
         </div>
         <div>
+          <span>Занятие</span>
+          <strong>{getSlideLesson(slide)}</strong>
+        </div>
+        <div>
           <span>Орган</span>
           <strong>{getSlideOrgan(slide)}</strong>
         </div>
@@ -851,6 +879,7 @@ function ViewerApp() {
   const [activeMarker, setActiveMarker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrgan, setSelectedOrgan] = useState(ALL_ORGANS_OPTION);
+  const [selectedLesson, setSelectedLesson] = useState(ALL_LESSONS_OPTION);
   const [isInfoVisible, setIsInfoVisible] = useState(true);
   const [isSelfTestMode, setIsSelfTestMode] = useState(false);
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
@@ -902,18 +931,31 @@ function ViewerApp() {
     return [ALL_ORGANS_OPTION, ...Array.from(uniqueOrgans)];
   }, [slidesData]);
 
+  const lessons = useMemo(() => {
+    const uniqueLessons = new Set();
+
+    slidesData.forEach((slide) => {
+      uniqueLessons.add(getSlideLesson(slide));
+    });
+
+    return [ALL_LESSONS_OPTION, ...Array.from(uniqueLessons)];
+  }, [slidesData]);
+
   const filteredSlides = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
     return slidesData.filter((slide) => {
       const matchesOrgan =
         selectedOrgan === ALL_ORGANS_OPTION || slide.organ === selectedOrgan;
+      const matchesLesson =
+        selectedLesson === ALL_LESSONS_OPTION || getSlideLesson(slide) === selectedLesson;
 
-      if (!matchesOrgan) return false;
+      if (!matchesOrgan || !matchesLesson) return false;
       if (!query) return true;
 
       const searchableText = [
         slide.title,
+        slide.lesson,
         slide.system,
         slide.organ,
         slide.stain,
@@ -925,7 +967,7 @@ function ViewerApp() {
 
       return searchableText.includes(query);
     });
-  }, [slidesData, searchQuery, selectedOrgan]);
+  }, [slidesData, searchQuery, selectedLesson, selectedOrgan]);
 
   const groupedSlides = useMemo(() => {
     return filteredSlides.reduce((groups, slide) => {
@@ -1069,13 +1111,16 @@ function ViewerApp() {
     <div className={isInfoVisible ? 'app' : 'app infoHidden'}>
       <Sidebar
         organs={organs}
+        lessons={lessons}
         groupedSlides={groupedSlides}
         selectedSlideId={selectedSlide.id}
         filteredCount={filteredSlides.length}
         searchQuery={searchQuery}
         selectedOrgan={selectedOrgan}
+        selectedLesson={selectedLesson}
         onSearchChange={setSearchQuery}
         onOrganChange={setSelectedOrgan}
+        onLessonChange={setSelectedLesson}
         onSelectSlide={setSelectedSlide}
       />
 
@@ -1125,7 +1170,7 @@ function ViewerApp() {
         ) : (
           <section className="notFound">
             <h2>Препараты не найдены</h2>
-            <p>Попробуй изменить поисковый запрос или выбрать другой орган.</p>
+            <p>Попробуй изменить поисковый запрос, занятие или орган.</p>
           </section>
         )}
       </main>

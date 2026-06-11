@@ -1847,6 +1847,7 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
     const {
       id,
       title,
+      lesson,
       system,
       organ,
       stain,
@@ -1907,6 +1908,7 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
     const newSlide = {
       id: slideId,
       title,
+      lesson: lesson || '',
       system: system || 'Без раздела',
       organ: organ || 'Не указан',
       stain: stain || 'Не указана',
@@ -1953,6 +1955,7 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
 
     const {
       title,
+      lesson,
       system,
       organ,
       stain,
@@ -2022,6 +2025,7 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
       ...existingSlide,
       id: currentId,
       title,
+      lesson: lesson || '',
       system: system || 'Без раздела',
       organ: organ || 'Не указан',
       stain: stain || 'Не указана',
