@@ -3056,6 +3056,62 @@ a:focus-visible {
   transform: translateY(0);
 }
 
+/* Итоговое расположение действий у созданных диагностик */
+
+.diagnosticsListCard .diagnosticAdminItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.diagnosticsListCard .diagnosticAdminItem .adminSlideActions {
+  display: flex;
+  width: auto;
+  max-width: 680px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.diagnosticsListCard .diagnosticAdminItem .adminSlideActions > * {
+  width: auto;
+  min-width: 108px;
+  height: 38px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.diagnosticsListCard .diagnosticAdminItem .adminSlideActions > *:nth-child(4) {
+  min-width: 58px;
+}
+
+.diagnosticsListCard .diagnosticAdminItem .adminSlideActions > *:nth-child(5) {
+  min-width: 74px;
+}
+
+.diagnosticsListCard .diagnosticAdminItem .adminSlideActions > *:last-child {
+  min-width: 96px;
+}
+
+@media (max-width: 1280px) {
+  .diagnosticsListCard .diagnosticAdminItem {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .diagnosticsListCard .diagnosticAdminItem .adminSlideActions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .diagnosticsListCard .diagnosticAdminItem .adminSlideActions > * {
+    flex: 1 1 140px;
+  }
+}
+
 .highlightEditor .regionTabs {
   display: flex;
   flex-wrap: wrap;
