@@ -166,6 +166,54 @@ function buildArrowFromPoints(startPoint, endPoint) {
   };
 }
 
+function isPointInsideMarker(point, marker) {
+  const bounds = getPickerMarkerBounds(marker);
+  if (!point || !bounds) return false;
+
+  return (
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
+  );
+}
+
+function moveMarkerByDelta(marker, deltaX, deltaY) {
+  if (!marker) return null;
+
+  if (marker.type === 'arrow') {
+    const minX = Math.min(Number(marker.x1), Number(marker.x2));
+    const maxX = Math.max(Number(marker.x1), Number(marker.x2));
+    const minY = Math.min(Number(marker.y1), Number(marker.y2));
+    const maxY = Math.max(Number(marker.y1), Number(marker.y2));
+    const clampedDeltaX = Math.max(-minX, Math.min(100 - maxX, deltaX));
+    const clampedDeltaY = Math.max(-minY, Math.min(100 - maxY, deltaY));
+
+    return {
+      ...marker,
+      type: 'arrow',
+      x1: Number((Number(marker.x1) + clampedDeltaX).toFixed(2)),
+      y1: Number((Number(marker.y1) + clampedDeltaY).toFixed(2)),
+      x2: Number((Number(marker.x2) + clampedDeltaX).toFixed(2)),
+      y2: Number((Number(marker.y2) + clampedDeltaY).toFixed(2)),
+    };
+  }
+
+  const width = Math.max(1, Math.min(100, Number(marker.width) || 1));
+  const height = Math.max(1, Math.min(100, Number(marker.height) || 1));
+  const x = Math.max(0, Math.min(100 - width, (Number(marker.x) || 0) + deltaX));
+  const y = Math.max(0, Math.min(100 - height, (Number(marker.y) || 0) + deltaY));
+
+  return {
+    ...marker,
+    type: marker.type || 'rect',
+    x: Number(x.toFixed(2)),
+    y: Number(y.toFixed(2)),
+    width: Number(width.toFixed(2)),
+    height: Number(height.toFixed(2)),
+  };
+}
+
 function createHighlightOverlayElement() {
   const element = document.createElement('div');
   element.className = 'diagnosticHighlightOverlay';
@@ -266,6 +314,7 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
   const viewerRef = useRef(null);
   const openSeadragonRef = useRef(null);
   const dragStartRef = useRef(null);
+  const markerInteractionRef = useRef(null);
   const overlayElementRef = useRef(null);
   const [isReady, setIsReady] = useState(false);
   const [mode, setMode] = useState('pan');
@@ -363,7 +412,20 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
     );
     if (!point) return;
 
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (isPointInsideMarker(point, highlight)) {
+      markerInteractionRef.current = {
+        type: 'move',
+        startPoint: point,
+        startMarker: highlight,
+      };
+      dragStartRef.current = null;
+      return;
+    }
+
+    markerInteractionRef.current = { type: 'draw' };
     dragStartRef.current = point;
     onChange(
       markerType === 'arrow'
@@ -373,13 +435,29 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
   };
 
   const updateDrawing = (event) => {
-    if (mode !== 'select' || !dragStartRef.current) return;
+    const interaction = markerInteractionRef.current;
+    if (mode !== 'select' || !interaction) return;
     const point = getImagePercentPoint(
       viewerRef.current,
       openSeadragonRef.current,
       event
     );
     if (!point) return;
+
+    event.preventDefault();
+
+    if (interaction.type === 'move') {
+      onChange(
+        moveMarkerByDelta(
+          interaction.startMarker,
+          point.x - interaction.startPoint.x,
+          point.y - interaction.startPoint.y
+        )
+      );
+      return;
+    }
+
+    if (!dragStartRef.current) return;
 
     onChange(
       markerType === 'arrow'
@@ -393,6 +471,7 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     dragStartRef.current = null;
+    markerInteractionRef.current = null;
   };
 
   const zoomBy = (factor) => {

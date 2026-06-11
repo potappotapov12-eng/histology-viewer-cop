@@ -241,6 +241,42 @@ function buildRegionFromPoints(startPoint, endPoint) {
   };
 }
 
+function isPointInsideRegion(point, region) {
+  if (!point || !region) return false;
+
+  const x = Number(region.x);
+  const y = Number(region.y);
+  const width = Number(region.width);
+  const height = Number(region.height);
+
+  return (
+    Number.isFinite(x) &&
+    Number.isFinite(y) &&
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    point.x >= x &&
+    point.x <= x + width &&
+    point.y >= y &&
+    point.y <= y + height
+  );
+}
+
+function moveRegionByDelta(region, deltaX, deltaY) {
+  if (!region) return null;
+
+  const width = Math.max(1, Math.min(100, Number(region.width) || 1));
+  const height = Math.max(1, Math.min(100, Number(region.height) || 1));
+  const x = Math.max(0, Math.min(100 - width, (Number(region.x) || 0) + deltaX));
+  const y = Math.max(0, Math.min(100 - height, (Number(region.y) || 0) + deltaY));
+
+  return {
+    x: Number(x.toFixed(2)),
+    y: Number(y.toFixed(2)),
+    width: Number(width.toFixed(2)),
+    height: Number(height.toFixed(2)),
+  };
+}
+
 function SlideViewer({
   source,
   highlight,
@@ -253,6 +289,7 @@ function SlideViewer({
   const viewerRef = useRef(null);
   const openSeadragonRef = useRef(null);
   const dragStartRef = useRef(null);
+  const regionInteractionRef = useRef(null);
   const highlightOverlayRef = useRef(null);
   const selectedOverlayRef = useRef(null);
   const [isViewerReady, setIsViewerReady] = useState(false);
@@ -382,13 +419,27 @@ function SlideViewer({
     );
     if (!point) return;
 
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (isPointInsideRegion(point, selectedRegion)) {
+      regionInteractionRef.current = {
+        type: 'move',
+        startPoint: point,
+        startRegion: selectedRegion,
+      };
+      dragStartRef.current = null;
+      return;
+    }
+
+    regionInteractionRef.current = { type: 'draw' };
     dragStartRef.current = point;
     onRegionChange?.(buildRegionFromPoints(point, point));
   };
 
   const updateRegion = (event) => {
-    if (!isRegionAnswerMode || regionToolMode !== 'select' || !dragStartRef.current) return;
+    const interaction = regionInteractionRef.current;
+    if (!isRegionAnswerMode || regionToolMode !== 'select' || !interaction) return;
     const point = getViewerImagePercentPoint(
       viewerRef.current,
       openSeadragonRef.current,
@@ -396,7 +447,22 @@ function SlideViewer({
     );
     if (!point) return;
 
-    onRegionChange?.(buildRegionFromPoints(dragStartRef.current, point));
+    event.preventDefault();
+
+    if (interaction.type === 'move') {
+      onRegionChange?.(
+        moveRegionByDelta(
+          interaction.startRegion,
+          point.x - interaction.startPoint.x,
+          point.y - interaction.startPoint.y
+        )
+      );
+      return;
+    }
+
+    if (dragStartRef.current) {
+      onRegionChange?.(buildRegionFromPoints(dragStartRef.current, point));
+    }
   };
 
   const finishRegion = (event) => {
@@ -404,6 +470,7 @@ function SlideViewer({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     dragStartRef.current = null;
+    regionInteractionRef.current = null;
   };
 
   const zoomRegionViewer = (factor) => {
