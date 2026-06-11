@@ -2401,37 +2401,45 @@ function AdminPage() {
                         <span className="regionEmptyState">Области не заданы</span>
                       )}
                     </div>
-                    <div className="regionActions">
+                    <div className="regionActions highlightRegionActions" aria-label="Действия с областью">
                       <button
                         type="button"
-                        className="adminSecondaryButton"
+                        className="adminSecondaryButton iconTooltipButton"
+                        aria-label="Добавить область"
+                        data-tooltip="Добавить область"
                         onClick={() => addQuestionRegion(activeDiagnosticQuestionIndex)}
                       >
-                        Добавить область
+                        +
                       </button>
                       <button
                         type="button"
-                        className="adminSecondaryButton"
+                        className="adminSecondaryButton iconTooltipButton"
+                        aria-label="Прямоугольник"
+                        data-tooltip="Прямоугольник"
                         disabled={!normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex]}
                         onClick={() => changeQuestionRegionType(activeDiagnosticQuestionIndex, activeRegionIndex, 'rect')}
                       >
-                        Прямоугольник
+                        ▭
                       </button>
                       <button
                         type="button"
-                        className="adminSecondaryButton"
+                        className="adminSecondaryButton iconTooltipButton"
+                        aria-label="Стрелка"
+                        data-tooltip="Стрелка"
                         disabled={!normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex]}
                         onClick={() => changeQuestionRegionType(activeDiagnosticQuestionIndex, activeRegionIndex, 'arrow')}
                       >
-                        Стрелка
+                        ↗
                       </button>
                       <button
                         type="button"
-                        className="adminSecondaryButton"
+                        className="adminSecondaryButton iconTooltipButton dangerIconButton"
+                        aria-label="Удалить область"
+                        data-tooltip="Удалить область"
                         disabled={normalizeAdminQuestion(activeDiagnosticQuestion).regions.length === 0}
                         onClick={() => removeQuestionRegion(activeDiagnosticQuestionIndex, activeRegionIndex)}
                       >
-                        Удалить область
+                        ×
                       </button>
                     </div>
                     {normalizeAdminQuestion(activeDiagnosticQuestion).regions[activeRegionIndex] ? (

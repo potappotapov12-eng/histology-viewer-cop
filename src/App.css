@@ -2934,6 +2934,95 @@ a:focus-visible {
   color: #7f1d1d;
 }
 
+.highlightEditor .highlightRegionActions {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton {
+  position: relative;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton.dangerIconButton,
+.highlightEditor .highlightRegionActions .iconTooltipButton.dangerIconButton:last-child {
+  margin-left: 8px;
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  width: max-content;
+  max-width: 190px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(4px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 3px);
+  z-index: 21;
+  border: 5px solid transparent;
+  border-top-color: #111827;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(4px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton:hover::after,
+.highlightEditor .highlightRegionActions .iconTooltipButton:hover::before,
+.highlightEditor .highlightRegionActions .iconTooltipButton:focus-visible::after,
+.highlightEditor .highlightRegionActions .iconTooltipButton:focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.highlightEditor .highlightRegionActions .iconTooltipButton:disabled::after,
+.highlightEditor .highlightRegionActions .iconTooltipButton:disabled::before {
+  display: none;
+}
+
 .highlightEditor .regionTabs {
   display: flex;
   flex-wrap: wrap;
@@ -2974,9 +3063,19 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .highlightEditor .regionActions .adminSecondaryButton,
-  .highlightEditor .regionActions .adminSecondaryButton:last-child {
+  .highlightEditor .highlightRegionActions {
     width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  .highlightEditor .highlightRegionActions .iconTooltipButton,
+  .highlightEditor .highlightRegionActions .iconTooltipButton:last-child {
+    width: 36px;
     margin-left: 0;
+  }
+
+  .highlightEditor .highlightRegionActions .dangerIconButton {
+    margin-left: 8px;
   }
 }
