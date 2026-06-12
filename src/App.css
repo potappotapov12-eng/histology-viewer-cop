@@ -2844,6 +2844,30 @@ a:focus-visible {
   color: white;
 }
 
+.adminForm .diagnosticQuestionsTabs button {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #111827;
+}
+
+.adminForm .diagnosticQuestionsTabs button.active {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.adminForm .diagnosticQuestionsTabs .addQuestionButton {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.adminForm .diagnosticQuestionsTabs button:not(.active, .addQuestionButton):hover {
+  border-color: #b91c1c;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
 .adminBackLink:hover {
   background: #991b1b;
   color: white;
