@@ -54,9 +54,21 @@ The deploy script:
 
 1. Pulls the latest `main`.
 2. Installs frontend dependencies.
-3. Builds `dist`.
-4. Installs backend dependencies.
-5. Restarts the `histology-viewer` service.
-6. Reloads Nginx.
+3. Runs frontend linting.
+4. Builds `dist`.
+5. Installs backend dependencies.
+6. Runs backend tests.
+7. Restarts the `histology-viewer` service.
+8. Checks `http://127.0.0.1:4000/api/health`.
+9. Reloads Nginx.
+
+After deployment, check the public site through Nginx:
+
+```bash
+curl https://your-domain.example/api/health
+```
+
+The response should have `"ok": true`, `"database": { "ok": true }`, and
+non-zero slide counts if the production database already contains materials.
 
 Slide files are not stored in Git. Keep `public/slides` on the server and update it separately.

@@ -4,6 +4,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/var/www/histology-viewer-cop}"
 BRANCH="${BRANCH:-main}"
 SERVICE_NAME="${SERVICE_NAME:-histology-viewer}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:4000/api/health}"
 
 cd "$APP_DIR"
 
@@ -30,6 +31,21 @@ npm test
 
 echo "Restarting backend service"
 sudo systemctl restart "$SERVICE_NAME"
+
+echo "Checking backend health"
+for attempt in {1..12}; do
+  if curl -fsS "$HEALTH_URL" >/dev/null; then
+    echo "Backend health check passed"
+    break
+  fi
+
+  if [ "$attempt" -eq 12 ]; then
+    echo "Backend health check failed: $HEALTH_URL"
+    exit 1
+  fi
+
+  sleep 2
+done
 
 echo "Reloading nginx"
 sudo systemctl reload nginx

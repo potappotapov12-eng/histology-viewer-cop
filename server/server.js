@@ -291,6 +291,62 @@ async function initDatabase() {
 
 await initDatabase();
 
+async function countPublicSlideFiles() {
+  try {
+    const entries = await fs.readdir(PUBLIC_SLIDES_DIR, { withFileTypes: true });
+    return entries.filter((entry) => entry.isFile() && entry.name.endsWith('.dzi')).length;
+  } catch {
+    return 0;
+  }
+}
+
+async function getHealthReport() {
+  const startedAt = Date.now();
+  const report = {
+    ok: true,
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.round(process.uptime()),
+    node: process.version,
+    database: {
+      ok: false,
+      latencyMs: null,
+      counts: {
+        slides: 0,
+        diagnostics: 0,
+        diagnosticResults: 0,
+      },
+    },
+    storage: {
+      publicSlidesDir: PUBLIC_SLIDES_DIR,
+      dziFiles: await countPublicSlideFiles(),
+    },
+  };
+
+  try {
+    const dbStartedAt = Date.now();
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT count(*)::int FROM slides) AS slides,
+        (SELECT count(*)::int FROM diagnostics) AS diagnostics,
+        (SELECT count(*)::int FROM diagnostic_results) AS diagnostic_results
+    `);
+
+    report.database.ok = true;
+    report.database.latencyMs = Date.now() - dbStartedAt;
+    report.database.counts = {
+      slides: rows[0]?.slides || 0,
+      diagnostics: rows[0]?.diagnostics || 0,
+      diagnosticResults: rows[0]?.diagnostic_results || 0,
+    };
+  } catch (error) {
+    report.ok = false;
+    report.database.error = error.message;
+  }
+
+  report.latencyMs = Date.now() - startedAt;
+  return report;
+}
+
 function slugify(value) {
   const cyrillicMap = {
     а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e',
@@ -1263,6 +1319,11 @@ async function saveSlideToDatabase(slideData) {
 app.get('/api/slides', async (req, res) => {
   const slides = await readSlides();
   res.json(slides);
+});
+
+app.get('/api/health', async (req, res) => {
+  const report = await getHealthReport();
+  res.status(report.ok ? 200 : 503).json(report);
 });
 
 app.get('/api/admin/slides', async (req, res) => {
