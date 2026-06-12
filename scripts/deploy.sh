@@ -15,12 +15,18 @@ git pull --ff-only origin "$BRANCH"
 echo "Installing frontend dependencies"
 npm ci
 
+echo "Checking frontend"
+npm run lint
+
 echo "Building frontend"
 npm run build
 
 echo "Installing backend dependencies"
 cd "$APP_DIR/server"
 npm ci
+
+echo "Testing backend logic"
+npm test
 
 echo "Restarting backend service"
 sudo systemctl restart "$SERVICE_NAME"

@@ -8,6 +8,14 @@ import pg from 'pg';
 import { fileURLToPath } from 'url';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import {
+  gradeMatchingAnswer,
+  gradeNumberAnswer,
+  gradeOrderingAnswer,
+  gradeRegionAnswer,
+  gradeTextAnswer,
+  normalizeOpenAnswer,
+} from './diagnosticLogic.js';
 
 const execFileAsync = promisify(execFile);
 const { Pool } = pg;
@@ -17,6 +25,7 @@ const __dirname = path.dirname(__filename);
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(__dirname, 'data');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const SLIDES_JSON = path.join(DATA_DIR, 'slides.json');
 const DIAGNOSTICS_JSON = path.join(DATA_DIR, 'diagnostics.json');
 const DIAGNOSTIC_RESULTS_JSON = path.join(DATA_DIR, 'diagnostic-results.json');
@@ -76,6 +85,7 @@ function updateJob(id, patch) {
 }
 
 await fs.mkdir(DATA_DIR, { recursive: true });
+await fs.mkdir(BACKUP_DIR, { recursive: true });
 await fs.mkdir(RAW_SLIDES_DIR, { recursive: true });
 await fs.mkdir(PUBLIC_SLIDES_DIR, { recursive: true });
 
@@ -169,6 +179,12 @@ async function replaceJsonItems(tableName, items) {
 
   try {
     await client.query('BEGIN');
+    const currentRows = await client.query(
+      tableName === 'diagnostic_results'
+        ? 'SELECT data FROM diagnostic_results ORDER BY submitted_at NULLS LAST, id'
+        : `SELECT data FROM ${tableName} ORDER BY id`
+    );
+    await backupJsonStore(tableName, currentRows.rows.map((row) => row.data));
     await client.query(`DELETE FROM ${tableName}`);
     for (const item of items) {
       await upsertJsonItem(client, tableName, item);
@@ -180,6 +196,12 @@ async function replaceJsonItems(tableName, items) {
   } finally {
     client.release();
   }
+}
+
+async function backupJsonStore(tableName, items) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = path.join(BACKUP_DIR, `${tableName}-${timestamp}.json`);
+  await fs.writeFile(backupPath, `${JSON.stringify(items, null, 2)}\n`, 'utf8');
 }
 
 async function readJsonItems(tableName, { diagnosticId = null } = {}) {
@@ -288,12 +310,52 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '');
 }
 
+function requireTextField(value, fieldName) {
+  const text = String(value || '').trim();
+  if (!text) throw new Error(`Не заполнено поле: ${fieldName}`);
+  return text;
+}
+
+function normalizeSlideData(slide, { strict = false } = {}) {
+  const title = strict
+    ? requireTextField(slide.title, 'Название')
+    : String(slide.title || 'Без названия').trim();
+  const lesson = strict
+    ? requireTextField(slide.lesson, 'Занятие')
+    : String(slide.lesson || 'Без занятия').trim();
+  const system = strict
+    ? requireTextField(slide.system, 'Раздел / система')
+    : String(slide.system || 'Без раздела').trim();
+  const organ = strict
+    ? requireTextField(slide.organ, 'Орган')
+    : String(slide.organ || 'Не указан').trim();
+  const stain = strict
+    ? requireTextField(slide.stain, 'Окраска')
+    : String(slide.stain || 'Не указана').trim();
+  const source = strict
+    ? requireTextField(slide.source, 'DZI-адрес или файл препарата')
+    : String(slide.source || '').trim();
+
+  return {
+    ...slide,
+    title,
+    lesson,
+    system,
+    organ,
+    stain,
+    source,
+    description: String(slide.description || '').trim(),
+    diagnosticSigns: parseDiagnosticSigns(slide.diagnosticSigns),
+    selfCheckQuestions: parseSelfCheckQuestions(slide.selfCheckQuestions),
+  };
+}
+
 async function readSlides() {
-  return readJsonItems('slides');
+  return (await readJsonItems('slides')).map((slide) => normalizeSlideData(slide));
 }
 
 async function writeSlides(slides) {
-  await replaceJsonItems('slides', slides);
+  await replaceJsonItems('slides', slides.map((slide) => normalizeSlideData(slide)));
 }
 
 async function readJsonArray(filePath) {
@@ -618,14 +680,6 @@ function sanitizeDiagnosticQuestion(question, index) {
   };
 }
 
-function normalizeOpenAnswer(value) {
-  return String(value || '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
-    .replace(/ё/g, 'е');
-}
-
 function shuffleArray(items) {
   const result = [...items];
 
@@ -850,114 +904,12 @@ function normalizeParticipantValue(value) {
     .toLowerCase();
 }
 
-function rectOverlapPercentOfSelected(target, selected) {
-  if (!target || !selected) return 0;
-  const targetBounds = getMarkerBounds(target);
-  if (!targetBounds) return 0;
-
-  const left = Math.max(Number(targetBounds.x), Number(selected.x));
-  const top = Math.max(Number(targetBounds.y), Number(selected.y));
-  const right = Math.min(Number(targetBounds.x) + Number(targetBounds.width), Number(selected.x) + Number(selected.width));
-  const bottom = Math.min(Number(targetBounds.y) + Number(targetBounds.height), Number(selected.y) + Number(selected.height));
-  const width = Math.max(0, right - left);
-  const height = Math.max(0, bottom - top);
-  const intersectionArea = width * height;
-  const selectedArea = Math.max(1, Number(selected.width) * Number(selected.height));
-
-  return (intersectionArea / selectedArea) * 100;
-}
-
-function rectCenterInside(target, selected) {
-  if (!target || !selected) return false;
-  const targetBounds = getMarkerBounds(target);
-  if (!targetBounds) return false;
-
-  const centerX = Number(selected.x) + Number(selected.width) / 2;
-  const centerY = Number(selected.y) + Number(selected.height) / 2;
-
-  return (
-    centerX >= Number(targetBounds.x) &&
-    centerX <= Number(targetBounds.x) + Number(targetBounds.width) &&
-    centerY >= Number(targetBounds.y) &&
-    centerY <= Number(targetBounds.y) + Number(targetBounds.height)
-  );
-}
-
-function getMarkerBounds(marker) {
-  if (!marker) return null;
-
-  if (marker.type === 'arrow') {
-    return {
-      x: Math.min(Number(marker.x1), Number(marker.x2)),
-      y: Math.min(Number(marker.y1), Number(marker.y2)),
-      width: Math.max(1, Math.abs(Number(marker.x2) - Number(marker.x1))),
-      height: Math.max(1, Math.abs(Number(marker.y2) - Number(marker.y1))),
-    };
-  }
-
-  return {
-    x: Number(marker.x),
-    y: Number(marker.y),
-    width: Number(marker.width),
-    height: Number(marker.height),
-  };
-}
-
 function getQuestionVisibleMarker(question) {
   const markers = Array.isArray(question.regions)
     ? question.regions
     : [question.region];
 
   return markers.find((marker) => marker?.type === 'arrow') || null;
-}
-
-function gradeTextAnswer(question, textAnswer) {
-  const normalizedAnswer = normalizeOpenAnswer(textAnswer);
-  const acceptedTexts = question.answer.acceptedTexts.length > 0
-    ? question.answer.acceptedTexts
-    : [question.answer.correctText];
-
-  return acceptedTexts.some((item) => normalizeOpenAnswer(item) === normalizedAnswer);
-}
-
-function gradeNumberAnswer(question, value) {
-  const numericValue = Number(value);
-  const { correctValue, tolerance, min, max } = question.answer.numeric;
-
-  if (!Number.isFinite(numericValue)) return false;
-
-  if (Number.isFinite(min) && Number.isFinite(max)) {
-    return numericValue >= min && numericValue <= max;
-  }
-
-  if (!Number.isFinite(correctValue)) return false;
-
-  return Math.abs(numericValue - correctValue) <= Math.max(0, Number(tolerance) || 0);
-}
-
-function gradeMatchingAnswer(question, selectedPairs = {}) {
-  return question.answer.pairs.every((pair) => selectedPairs[pair.id] === pair.id);
-}
-
-function gradeOrderingAnswer(question, orderedItemIds = []) {
-  return JSON.stringify(orderedItemIds) ===
-    JSON.stringify(question.answer.items.map((item) => item.id));
-}
-
-function gradeRegionAnswer(question, selectedRegion) {
-  if (!selectedRegion) return false;
-  const regions = (Array.isArray(question.regions)
-    ? question.regions
-    : [question.region]).filter((region) => region?.type !== 'arrow');
-  if (regions.length === 0) return false;
-
-  if (question.grading.regionMode === 'center') {
-    return regions.some((region) => rectCenterInside(region, selectedRegion));
-  }
-
-  return regions.some((region) =>
-    rectOverlapPercentOfSelected(region, selectedRegion) >= question.grading.regionThreshold
-  );
 }
 
 async function validateDiagnosticForPublication(diagnostic) {
@@ -1857,14 +1809,14 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
       source,
     } = req.body;
 
-    if (!title) {
-      throw new Error('Не указано название препарата');
-    }
-
     const slideId = slugify(id || title);
 
     if (!slideId) {
       throw new Error('Не удалось создать ID препарата');
+    }
+
+    if (!req.file && !String(source || '').trim()) {
+      throw new Error('Укажите DZI-адрес или загрузите файл препарата');
     }
 
     updateJob(job.id, {
@@ -1873,7 +1825,7 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
       message: 'Создание карточки препарата...',
     });
 
-    let slideSource = source || `/slides/${slideId}.dzi`;
+    let slideSource = String(source || '').trim();
 
     if (req.file) {
       updateJob(job.id, {
@@ -1905,18 +1857,18 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
       message: 'Сохранение данных препарата...',
     });
 
-    const newSlide = {
+    const newSlide = normalizeSlideData({
       id: slideId,
       title,
-      lesson: lesson || '',
-      system: system || 'Без раздела',
-      organ: organ || 'Не указан',
-      stain: stain || 'Не указана',
+      lesson,
+      system,
+      organ,
+      stain,
       source: slideSource,
       description: description || '',
       diagnosticSigns: parseDiagnosticSigns(diagnosticSigns),
       selfCheckQuestions: parseSelfCheckQuestions(selfCheckQuestions),
-    };
+    }, { strict: true });
 
     await saveSlideToDatabase(newSlide);
 
@@ -1965,10 +1917,6 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
       source,
     } = req.body;
 
-    if (!title) {
-      throw new Error('Не указано название препарата');
-    }
-
     const slides = await readSlides();
     const existingIndex = slides.findIndex((slide) => slide.id === currentId);
 
@@ -1988,8 +1936,7 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
       message: 'Подготовка изменений карточки...',
     });
 
-    let slideSource =
-      source || existingSlide.source || `/slides/${currentId}.dzi`;
+    let slideSource = String(source || existingSlide.source || '').trim();
 
     if (req.file) {
       updateJob(job.id, {
@@ -2021,19 +1968,19 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
       message: 'Сохранение изменений...',
     });
 
-    const updatedSlide = {
+    const updatedSlide = normalizeSlideData({
       ...existingSlide,
       id: currentId,
       title,
-      lesson: lesson || '',
-      system: system || 'Без раздела',
-      organ: organ || 'Не указан',
-      stain: stain || 'Не указана',
+      lesson,
+      system,
+      organ,
+      stain,
       source: slideSource,
       description: description || '',
       diagnosticSigns: parseDiagnosticSigns(diagnosticSigns),
       selfCheckQuestions: parseSelfCheckQuestions(selfCheckQuestions),
-    };
+    }, { strict: true });
 
     slides[existingIndex] = updatedSlide;
 

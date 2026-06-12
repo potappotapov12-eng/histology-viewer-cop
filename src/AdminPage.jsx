@@ -179,6 +179,62 @@ function isPointInsideMarker(point, marker) {
   );
 }
 
+function getRectResizeHandle(point, marker) {
+  if (!point || !marker || marker.type === 'arrow') return '';
+  const x = Number(marker.x);
+  const y = Number(marker.y);
+  const width = Number(marker.width);
+  const height = Number(marker.height);
+  const threshold = Math.max(1.5, Math.min(4, Math.min(width, height) * 0.25));
+  const nearLeft = Math.abs(point.x - x) <= threshold;
+  const nearRight = Math.abs(point.x - (x + width)) <= threshold;
+  const nearTop = Math.abs(point.y - y) <= threshold;
+  const nearBottom = Math.abs(point.y - (y + height)) <= threshold;
+
+  if (nearTop && nearLeft) return 'nw';
+  if (nearTop && nearRight) return 'ne';
+  if (nearBottom && nearLeft) return 'sw';
+  if (nearBottom && nearRight) return 'se';
+  if (nearLeft) return 'w';
+  if (nearRight) return 'e';
+  if (nearTop) return 'n';
+  if (nearBottom) return 's';
+  return '';
+}
+
+function resizeMarkerFromPoint(marker, handle, point) {
+  if (!marker || marker.type === 'arrow' || !handle || !point) return marker;
+
+  const left = Number(marker.x);
+  const top = Number(marker.y);
+  const right = left + Number(marker.width);
+  const bottom = top + Number(marker.height);
+  const minSize = 1;
+  let nextLeft = left;
+  let nextTop = top;
+  let nextRight = right;
+  let nextBottom = bottom;
+
+  if (handle.includes('w')) nextLeft = Math.min(point.x, right - minSize);
+  if (handle.includes('e')) nextRight = Math.max(point.x, left + minSize);
+  if (handle.includes('n')) nextTop = Math.min(point.y, bottom - minSize);
+  if (handle.includes('s')) nextBottom = Math.max(point.y, top + minSize);
+
+  nextLeft = Math.max(0, Math.min(100 - minSize, nextLeft));
+  nextTop = Math.max(0, Math.min(100 - minSize, nextTop));
+  nextRight = Math.max(nextLeft + minSize, Math.min(100, nextRight));
+  nextBottom = Math.max(nextTop + minSize, Math.min(100, nextBottom));
+
+  return {
+    ...marker,
+    type: marker.type || 'rect',
+    x: Number(nextLeft.toFixed(2)),
+    y: Number(nextTop.toFixed(2)),
+    width: Number((nextRight - nextLeft).toFixed(2)),
+    height: Number((nextBottom - nextTop).toFixed(2)),
+  };
+}
+
 function moveMarkerByDelta(marker, deltaX, deltaY) {
   if (!marker) return null;
 
@@ -416,6 +472,18 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
 
+    const resizeHandle = getRectResizeHandle(point, highlight);
+
+    if (resizeHandle) {
+      markerInteractionRef.current = {
+        type: 'resize',
+        handle: resizeHandle,
+        startMarker: highlight,
+      };
+      dragStartRef.current = null;
+      return;
+    }
+
     if (isPointInsideMarker(point, highlight)) {
       markerInteractionRef.current = {
         type: 'move',
@@ -455,6 +523,11 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
           point.y - interaction.startPoint.y
         )
       );
+      return;
+    }
+
+    if (interaction.type === 'resize') {
+      onChange(resizeMarkerFromPoint(interaction.startMarker, interaction.handle, point));
       return;
     }
 
@@ -763,6 +836,8 @@ function AdminPage() {
   const [resultsStatus, setResultsStatus] = useState('');
   const [hasDiagnosticDraft, setHasDiagnosticDraft] = useState(false);
   const [draftStatus, setDraftStatus] = useState('');
+  const [slideListSearch, setSlideListSearch] = useState('');
+  const [diagnosticStatusFilter, setDiagnosticStatusFilter] = useState('all');
 
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
@@ -793,6 +868,17 @@ function AdminPage() {
     [diagnosticForm, slides]
   );
   const isPublishedWithWarnings = diagnosticForm.isPublished && publicationWarnings.length > 0;
+  const filteredAdminSlides = useMemo(() => {
+    const query = slideListSearch.trim().toLowerCase();
+    if (!query) return slides;
+    return slides.filter((slide) => getSlideSearchText(slide).includes(query));
+  }, [slideListSearch, slides]);
+  const filteredAdminDiagnostics = useMemo(() => {
+    return diagnostics.filter((diagnostic) => {
+      if (diagnosticStatusFilter === 'all') return true;
+      return diagnostic.status === diagnosticStatusFilter;
+    });
+  }, [diagnosticStatusFilter, diagnostics]);
 
   const loadSlides = async () => {
     const response = await fetch('/api/admin/slides');
@@ -1633,6 +1719,7 @@ function AdminPage() {
             <label>
               Занятие
               <input
+                required
                 value={form.lesson}
                 onChange={(event) => updateField('lesson', event.target.value)}
                 placeholder="Например: Занятие 1. Сердечно-сосудистая система"
@@ -1642,6 +1729,7 @@ function AdminPage() {
             <label>
               Раздел / система
               <input
+                required
                 value={form.system}
                 onChange={(event) => updateField('system', event.target.value)}
                 placeholder="Сердечно-сосудистая система"
@@ -1651,6 +1739,7 @@ function AdminPage() {
             <label>
               Орган
               <input
+                required
                 value={form.organ}
                 onChange={(event) => updateField('organ', event.target.value)}
                 placeholder="Сердце"
@@ -1660,6 +1749,7 @@ function AdminPage() {
             <label>
               Окраска
               <input
+                required
                 value={form.stain}
                 onChange={(event) => updateField('stain', event.target.value)}
                 placeholder="H&E"
@@ -1794,6 +1884,7 @@ function AdminPage() {
             <label>
               Готовый DZI-адрес
               <input
+                required={!file}
                 value={form.source}
                 onChange={(event) => updateField('source', event.target.value)}
                 placeholder="/slides/infarkt-myokardu.dzi"
@@ -1846,9 +1937,20 @@ function AdminPage() {
 
         <section className="adminCard slideListCard">
           <h2>Список препаратов</h2>
+          <div className="adminListToolbar">
+            <input
+              type="search"
+              value={slideListSearch}
+              onChange={(event) => setSlideListSearch(event.target.value)}
+              placeholder="Поиск по названию, занятию, органу, разделу..."
+            />
+            <span>
+              Показано: {filteredAdminSlides.length} из {slides.length}
+            </span>
+          </div>
 
           <div className="adminSlideList">
-            {slides.map((slide) => (
+            {filteredAdminSlides.map((slide) => (
               <div key={slide.id} className="adminSlideItem">
                 <div>
                   <strong>{slide.title}</strong>
@@ -1880,7 +1982,10 @@ function AdminPage() {
               </div>
             ))}
 
-            {slides.length === 0 && <p>Пока препараты не добавлены.</p>}
+            {slides.length === 0 && <p className="adminHint">Пока препараты не добавлены.</p>}
+            {slides.length > 0 && filteredAdminSlides.length === 0 && (
+              <p className="adminHint">По этому запросу препараты не найдены.</p>
+            )}
           </div>
         </section>
         </>
@@ -2401,6 +2506,9 @@ function AdminPage() {
                         <span className="regionEmptyState">Области не заданы</span>
                       )}
                     </div>
+                    <p className="regionModeHint">
+                      Режим: потяните внутри области для перемещения, за край или угол для изменения размера.
+                    </p>
                     <div className="regionActions highlightRegionActions" aria-label="Действия с областью">
                       <button
                         type="button"
@@ -2537,9 +2645,24 @@ function AdminPage() {
 
         <section className="adminCard diagnosticsListCard">
           <h2>Диагностики</h2>
+          <div className="adminListToolbar">
+            <select
+              value={diagnosticStatusFilter}
+              onChange={(event) => setDiagnosticStatusFilter(event.target.value)}
+            >
+              <option value="all">Все статусы</option>
+              <option value="open">Опубликованные</option>
+              <option value="draft">Черновики</option>
+              <option value="scheduled">Запланированные</option>
+              <option value="closed">Завершенные</option>
+            </select>
+            <span>
+              Показано: {filteredAdminDiagnostics.length} из {diagnostics.length}
+            </span>
+          </div>
 
           <div className="adminSlideList">
-            {diagnostics.map((diagnostic) => (
+            {filteredAdminDiagnostics.map((diagnostic) => (
               <div key={diagnostic.id} className="adminSlideItem diagnosticAdminItem">
                 <div>
                   <strong>{diagnostic.title}</strong>
@@ -2597,7 +2720,10 @@ function AdminPage() {
               </div>
             ))}
 
-            {diagnostics.length === 0 && <p>Диагностики пока не созданы.</p>}
+            {diagnostics.length === 0 && <p className="adminHint">Диагностики пока не созданы.</p>}
+            {diagnostics.length > 0 && filteredAdminDiagnostics.length === 0 && (
+              <p className="adminHint">Диагностики с выбранным статусом не найдены.</p>
+            )}
           </div>
         </section>
 

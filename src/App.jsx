@@ -890,6 +890,7 @@ function ViewerApp() {
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
   const [isLoadingSlides, setIsLoadingSlides] = useState(true);
   const [slidesError, setSlidesError] = useState('');
+  const [viewerLoadError, setViewerLoadError] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1000,6 +1001,7 @@ function ViewerApp() {
   useEffect(() => {
     setIsAnswerVisible(false);
     setActiveMarker(null);
+    setViewerLoadError('');
   }, [selectedSlide?.id]);
 
   useEffect(() => {
@@ -1007,14 +1009,20 @@ function ViewerApp() {
     const viewerElement = viewerElementRef.current;
     const tileSources = createTileSource(selectedSlide?.source);
 
-    if (!viewerElement || !tileSources) return undefined;
+    if (!viewerElement) return undefined;
+
+    if (!tileSources) {
+      setViewerLoadError('У препарата не указан DZI-адрес или файл изображения.');
+      return undefined;
+    }
 
     viewerRef.current?.destroy();
+    setViewerLoadError('');
 
     import('openseadragon').then(({ default: OpenSeadragon }) => {
       if (isCancelled) return;
 
-      viewerRef.current = OpenSeadragon({
+      const viewer = OpenSeadragon({
         element: viewerElement,
         prefixUrl: '/openseadragon/images/',
         tileSources,
@@ -1031,6 +1039,10 @@ function ViewerApp() {
           dblClickToZoom: true,
         },
       });
+      viewer.addHandler('open-failed', () => {
+        setViewerLoadError('Не удалось загрузить изображение препарата. Проверьте DZI-адрес и наличие тайлов.');
+      });
+      viewerRef.current = viewer;
     });
 
     return () => {
@@ -1159,6 +1171,11 @@ function ViewerApp() {
         {filteredSlides.length > 0 ? (
           <div className={isInfoVisible ? 'atlasWorkspace' : 'atlasWorkspace infoCollapsed'}>
             <section className="viewerWrap">
+              {viewerLoadError && (
+                <div className="viewerError">
+                  {viewerLoadError}
+                </div>
+              )}
               <div ref={viewerElementRef} className="viewer" />
             </section>
 

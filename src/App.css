@@ -330,6 +330,16 @@ select {
   padding: 24px 28px 18px;
 }
 
+.viewerError {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #7f1d1d;
+  font-weight: 700;
+}
+
 .viewer {
   position: relative;
   width: 100%;
@@ -866,6 +876,32 @@ select {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.adminListToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.adminListToolbar input,
+.adminListToolbar select {
+  min-height: 38px;
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: #ffffff;
+  padding: 8px 11px;
+  font: inherit;
+}
+
+.adminListToolbar span {
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .adminSlideItem {
@@ -2497,6 +2533,13 @@ a:focus-visible {
   color: #6b7280;
   font-size: 13px;
   font-weight: 700;
+}
+
+.regionModeHint {
+  margin: 0 0 8px !important;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .highlightMiniPreview,
