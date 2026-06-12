@@ -338,6 +338,27 @@ function getPickerMarkerBounds(marker) {
   };
 }
 
+function getCombinedMarkerBounds(markers) {
+  const bounds = markers
+    .map((marker) => getPickerMarkerBounds(marker))
+    .filter(Boolean);
+
+  if (bounds.length === 0) return null;
+
+  const minX = Math.max(0, Math.min(...bounds.map((bound) => bound.x)) - 4);
+  const minY = Math.max(0, Math.min(...bounds.map((bound) => bound.y)) - 4);
+  const maxX = Math.min(100, Math.max(...bounds.map((bound) => bound.x + bound.width)) + 4);
+  const maxY = Math.min(100, Math.max(...bounds.map((bound) => bound.y + bound.height)) + 4);
+
+  return {
+    type: 'rect',
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
 function addPickerHighlightOverlay(viewer, marker) {
   if (!viewer || !marker) return null;
 
@@ -358,6 +379,43 @@ function addPickerHighlightOverlay(viewer, marker) {
     (bounds.height / 100) * size.y
   );
 
+  viewer.addOverlay({
+    element,
+    location: rect,
+  });
+
+  return element;
+}
+
+function createReviewRegionElement(className) {
+  const element = document.createElement('div');
+  element.className = className;
+  return element;
+}
+
+function getMarkerViewportRect(viewer, marker) {
+  if (!viewer || !marker) return null;
+
+  const tiledImage = viewer.world.getItemAt(0);
+  const size = tiledImage?.source?.dimensions;
+  const bounds = getPickerMarkerBounds(marker);
+
+  if (!tiledImage || !size?.x || !size?.y || !bounds) return null;
+
+  return tiledImage.imageToViewportRectangle(
+    (bounds.x / 100) * size.x,
+    (bounds.y / 100) * size.y,
+    (bounds.width / 100) * size.x,
+    (bounds.height / 100) * size.y
+  );
+}
+
+function addReviewRegionOverlay(viewer, marker, className) {
+  const rect = getMarkerViewportRect(viewer, marker);
+
+  if (!rect) return null;
+
+  const element = createReviewRegionElement(className);
   viewer.addOverlay({
     element,
     location: rect,
@@ -626,6 +684,145 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
   );
 }
 
+function RegionReviewPreview({ answer, question, slide }) {
+  const viewerElementRef = useRef(null);
+  const viewerRef = useRef(null);
+  const overlaysRef = useRef([]);
+  const [isReady, setIsReady] = useState(false);
+  const [error, setError] = useState('');
+  const selectedRegion = useMemo(
+    () => (answer?.selectedRegion ? normalizeAdminMarker(answer.selectedRegion) : null),
+    [answer]
+  );
+  const correctRegions = useMemo(() => {
+    if (!question) return [];
+    return normalizeAdminQuestion(question).regions;
+  }, [question]);
+  const hasPreviewData = Boolean(slide?.source && (selectedRegion || correctRegions.length > 0));
+
+  useEffect(() => {
+    let isCancelled = false;
+    const element = viewerElementRef.current;
+    const tileSources = createTileSource(slide?.source);
+
+    setError('');
+    setIsReady(false);
+
+    if (!element || !tileSources) {
+      if (!slide?.source) {
+        setError('Препарат для этого вопроса не найден.');
+      }
+      return undefined;
+    }
+
+    viewerRef.current?.destroy();
+
+    import('openseadragon')
+      .then(({ default: OpenSeadragon }) => {
+        if (isCancelled) return;
+
+        const viewer = OpenSeadragon({
+          element,
+          prefixUrl: '/openseadragon/images/',
+          tileSources,
+          showNavigator: false,
+          showNavigationControl: false,
+          animationTime: 0.2,
+          blendTime: 0.1,
+          visibilityRatio: 1,
+          constrainDuringPan: true,
+          gestureSettingsMouse: {
+            scrollToZoom: true,
+            dragToPan: true,
+            clickToZoom: false,
+            dblClickToZoom: false,
+            zoomToRefPoint: true,
+          },
+        });
+
+        viewerRef.current = viewer;
+
+        viewer.addHandler('open', () => {
+          if (isCancelled) return;
+          viewer.viewport.goHome(true);
+          setIsReady(true);
+        });
+        viewer.addHandler('open-failed', () => {
+          if (!isCancelled) {
+            setError('Не удалось загрузить препарат для просмотра области.');
+          }
+        });
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setError('Не удалось открыть просмотр препарата.');
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+      const viewer = viewerRef.current;
+      overlaysRef.current.forEach((overlay) => viewer?.removeOverlay(overlay));
+      overlaysRef.current = [];
+      viewer?.destroy();
+      viewerRef.current = null;
+      setIsReady(false);
+    };
+  }, [slide?.source]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isReady) return undefined;
+
+    overlaysRef.current.forEach((overlay) => viewer.removeOverlay(overlay));
+    overlaysRef.current = [];
+
+    correctRegions.forEach((region) => {
+      const overlay = addReviewRegionOverlay(viewer, region, 'reviewCorrectRegionOverlay');
+      if (overlay) overlaysRef.current.push(overlay);
+    });
+
+    if (selectedRegion) {
+      const overlay = addReviewRegionOverlay(viewer, selectedRegion, 'reviewSelectedRegionOverlay');
+      if (overlay) overlaysRef.current.push(overlay);
+    }
+
+    const focusMarker = getCombinedMarkerBounds([
+      selectedRegion,
+      ...correctRegions,
+    ].filter(Boolean));
+    const focusRect = getMarkerViewportRect(viewer, focusMarker);
+    if (focusRect) {
+      viewer.viewport.fitBoundsWithConstraints(focusRect, true);
+    }
+
+    return () => {
+      if (viewerRef.current === viewer) {
+        overlaysRef.current.forEach((overlay) => viewer.removeOverlay(overlay));
+        overlaysRef.current = [];
+      }
+    };
+  }, [correctRegions, isReady, selectedRegion]);
+
+  if (!selectedRegion) {
+    return <p className="adminHint regionReviewEmpty">Студент не выделил область.</p>;
+  }
+
+  if (!hasPreviewData || error) {
+    return <p className="adminHint regionReviewEmpty">{error || 'Нет данных для просмотра области.'}</p>;
+  }
+
+  return (
+    <div className="regionReviewPreview">
+      <div className="regionReviewLegend">
+        <span><i className="regionReviewSwatch selected" />Ответ студента</span>
+        <span><i className="regionReviewSwatch correct" />Эталон</span>
+      </div>
+      <div ref={viewerElementRef} className="regionReviewViewer" />
+    </div>
+  );
+}
+
 function normalizeSlideDiagnosticSigns(signs) {
   if (!Array.isArray(signs)) return [];
 
@@ -879,6 +1076,14 @@ function AdminPage() {
       return diagnostic.status === diagnosticStatusFilter;
     });
   }, [diagnosticStatusFilter, diagnostics]);
+  const reviewQuestionById = useMemo(() => {
+    return new Map(
+      (selectedDiagnosticForResults?.questions || []).map((question) => [question.id, question])
+    );
+  }, [selectedDiagnosticForResults]);
+  const slideById = useMemo(() => {
+    return new Map(slides.map((slide) => [slide.id, slide]));
+  }, [slides]);
 
   const loadSlides = async () => {
     const response = await fetch('/api/admin/slides');
@@ -2777,47 +2982,59 @@ function AdminPage() {
                     <strong>{selectedResult.score} / {selectedResult.total} ({selectedResult.percent}%)</strong>
                   </div>
 
-                  {(selectedResult.answers || []).map((answer, index) => (
-                    <div key={answer.questionId} className="answerReviewItem">
-                      <div>
-                        <strong>Вопрос {index + 1}</strong>
-                        <span>{answer.type} · авто: {answer.isCorrect ? 'верно' : 'не верно'}</span>
-                      </div>
-                      <p>Ответ: {formatReviewAnswer(answer)}</p>
-                      {(answer.correctOptions?.length > 0 || answer.correctText || answer.correctOption) && (
-                        <p>Эталон: {answer.correctOptions?.join('; ') || answer.correctText || answer.correctOption}</p>
-                      )}
-                      <div className="reviewControls">
-                        <label>
-                          Баллы
-                          <input
-                            type="number"
-                            min="0"
-                            max={answer.points}
-                            step="0.1"
-                            value={answer.earnedPoints ?? 0}
-                            onChange={(event) =>
-                              updateSelectedAnswerReview(answer.questionId, {
-                                earnedPoints: event.target.value,
-                              })
-                            }
+                  {(selectedResult.answers || []).map((answer, index) => {
+                    const reviewQuestion = reviewQuestionById.get(answer.questionId);
+                    const reviewSlide = slideById.get(reviewQuestion?.slideId);
+
+                    return (
+                      <div key={answer.questionId} className="answerReviewItem">
+                        <div>
+                          <strong>Вопрос {index + 1}</strong>
+                          <span>{answer.type} · авто: {answer.isCorrect ? 'верно' : 'не верно'}</span>
+                        </div>
+                        <p>Ответ: {formatReviewAnswer(answer)}</p>
+                        {(answer.correctOptions?.length > 0 || answer.correctText || answer.correctOption) && (
+                          <p>Эталон: {answer.correctOptions?.join('; ') || answer.correctText || answer.correctOption}</p>
+                        )}
+                        {answer.type === 'region' && (
+                          <RegionReviewPreview
+                            answer={answer}
+                            question={reviewQuestion}
+                            slide={reviewSlide}
                           />
-                        </label>
-                        <label>
-                          Комментарий
-                          <input
-                            value={answer.reviewComment || ''}
-                            onChange={(event) =>
-                              updateSelectedAnswerReview(answer.questionId, {
-                                reviewComment: event.target.value,
-                              })
-                            }
-                            placeholder="Комментарий преподавателя"
-                          />
-                        </label>
+                        )}
+                        <div className="reviewControls">
+                          <label>
+                            Баллы
+                            <input
+                              type="number"
+                              min="0"
+                              max={answer.points}
+                              step="0.1"
+                              value={answer.earnedPoints ?? 0}
+                              onChange={(event) =>
+                                updateSelectedAnswerReview(answer.questionId, {
+                                  earnedPoints: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            Комментарий
+                            <input
+                              value={answer.reviewComment || ''}
+                              onChange={(event) =>
+                                updateSelectedAnswerReview(answer.questionId, {
+                                  reviewComment: event.target.value,
+                                })
+                              }
+                              placeholder="Комментарий преподавателя"
+                            />
+                          </label>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   <label className="diagnosticTextAnswer">
                     Общий комментарий
