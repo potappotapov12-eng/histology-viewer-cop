@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import pg from 'pg';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -39,6 +40,12 @@ const PORT = process.env.PORT || 4000;
 const DATABASE_URL =
   process.env.DATABASE_URL ||
   'postgres://postgres:postgres@127.0.0.1:5432/histology_viewer';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_SESSION_SECRET =
+  process.env.ADMIN_SESSION_SECRET ||
+  crypto.randomBytes(32).toString('hex');
+const ADMIN_SESSION_COOKIE = 'histology_admin_session';
+const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
@@ -82,6 +89,120 @@ function updateJob(id, patch) {
     ...current,
     ...patch,
   });
+}
+
+function parseCookies(header = '') {
+  return String(header || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((cookies, part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex < 0) return cookies;
+
+      const name = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+
+      cookies[name] = decodeURIComponent(value);
+      return cookies;
+    }, {});
+}
+
+function signAdminSession(expiresAt) {
+  return crypto
+    .createHmac('sha256', ADMIN_SESSION_SECRET)
+    .update(String(expiresAt))
+    .digest('hex');
+}
+
+function createAdminSessionToken() {
+  const expiresAt = Date.now() + ADMIN_SESSION_TTL_MS;
+  return `${expiresAt}.${signAdminSession(expiresAt)}`;
+}
+
+function isAdminSessionTokenValid(token) {
+  const [expiresAtRaw, signature] = String(token || '').split('.');
+  const expiresAt = Number(expiresAtRaw);
+
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
+    return false;
+  }
+
+  const expected = signAdminSession(expiresAt);
+  const expectedBuffer = Buffer.from(expected);
+  const signatureBuffer = Buffer.from(signature);
+
+  return (
+    expectedBuffer.length === signatureBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, signatureBuffer)
+  );
+}
+
+function getAdminCookieOptions({ expires = null } = {}) {
+  const options = [
+    'HttpOnly',
+    'SameSite=Lax',
+    'Path=/',
+  ];
+
+  if (process.env.ADMIN_COOKIE_SECURE === 'true') {
+    options.push('Secure');
+  }
+
+  if (expires) {
+    options.push(`Expires=${expires.toUTCString()}`);
+  } else {
+    options.push(`Max-Age=${Math.floor(ADMIN_SESSION_TTL_MS / 1000)}`);
+  }
+
+  return options.join('; ');
+}
+
+function setAdminSessionCookie(res) {
+  res.setHeader(
+    'Set-Cookie',
+    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(createAdminSessionToken())}; ${getAdminCookieOptions()}`
+  );
+}
+
+function clearAdminSessionCookie(res) {
+  res.setHeader(
+    'Set-Cookie',
+    `${ADMIN_SESSION_COOKIE}=; ${getAdminCookieOptions({ expires: new Date(0) })}; Max-Age=0`
+  );
+}
+
+function isAdminAuthenticated(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  return isAdminSessionTokenValid(cookies[ADMIN_SESSION_COOKIE]);
+}
+
+function requireAdmin(req, res, next) {
+  if (!ADMIN_PASSWORD) {
+    return res.status(503).json({
+      error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
+    });
+  }
+
+  if (!isAdminAuthenticated(req)) {
+    return res.status(401).json({
+      error: 'Требуется вход администратора',
+    });
+  }
+
+  return next();
+}
+
+function isAdminPasswordValid(value) {
+  if (!ADMIN_PASSWORD) return false;
+
+  const expectedBuffer = Buffer.from(ADMIN_PASSWORD);
+  const actualBuffer = Buffer.from(String(value || ''));
+
+  return (
+    expectedBuffer.length === actualBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, actualBuffer)
+  );
 }
 
 await fs.mkdir(DATA_DIR, { recursive: true });
@@ -307,6 +428,9 @@ async function getHealthReport() {
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.round(process.uptime()),
     node: process.version,
+    adminAuth: {
+      configured: Boolean(ADMIN_PASSWORD),
+    },
     database: {
       ok: false,
       latencyMs: null,
@@ -1325,6 +1449,43 @@ app.get('/api/health', async (req, res) => {
   const report = await getHealthReport();
   res.status(report.ok ? 200 : 503).json(report);
 });
+
+app.get('/api/admin/session', (req, res) => {
+  res.json({
+    ok: true,
+    configured: Boolean(ADMIN_PASSWORD),
+    authenticated: Boolean(ADMIN_PASSWORD && isAdminAuthenticated(req)),
+  });
+});
+
+app.post('/api/admin/login', (req, res) => {
+  if (!ADMIN_PASSWORD) {
+    return res.status(503).json({
+      error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
+    });
+  }
+
+  if (!isAdminPasswordValid(req.body?.password)) {
+    clearAdminSessionCookie(res);
+    return res.status(401).json({
+      error: 'Неверный пароль',
+    });
+  }
+
+  setAdminSessionCookie(res);
+  return res.json({
+    ok: true,
+  });
+});
+
+app.post('/api/admin/logout', (req, res) => {
+  clearAdminSessionCookie(res);
+  res.json({
+    ok: true,
+  });
+});
+
+app.use('/api/admin', requireAdmin);
 
 app.get('/api/admin/slides', async (req, res) => {
   const slides = await readSlides();

@@ -746,6 +746,86 @@ select {
   color: #111827;
 }
 
+.adminLoginPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #eef2f7;
+  color: #111827;
+}
+
+.adminLoginCard {
+  width: min(100%, 440px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 24px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+}
+
+.adminLoginCard h1,
+.adminLoginCard p {
+  margin: 0;
+}
+
+.adminLoginCard p {
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.adminLoginCard label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #374151;
+  font-weight: 700;
+}
+
+.adminLoginCard input {
+  min-height: 42px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font: inherit;
+}
+
+.adminLoginActions,
+.adminHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.adminLoginActions button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: #b91c1c;
+  color: #ffffff;
+  padding: 9px 14px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.adminLoginActions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.adminLoginError {
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b !important;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
 .adminHeader {
   background: #0f172a;
   color: white;

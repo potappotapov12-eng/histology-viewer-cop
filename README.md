@@ -32,6 +32,23 @@ export DATABASE_URL="postgres://user:password@host:5432/database"
 `server/data/slides.json`, `server/data/diagnostics.json`,
 `server/data/diagnostic-results.json`, если соответствующие таблицы пустые.
 
+## Авторизация админки
+
+Административный интерфейс и все `/api/admin/*` маршруты требуют пароль. На
+сервере задайте переменную окружения:
+
+```bash
+export ADMIN_PASSWORD="сложный-пароль"
+```
+
+Дополнительно можно задать постоянный секрет подписи cookie-сессий:
+
+```bash
+export ADMIN_SESSION_SECRET="длинная-случайная-строка"
+```
+
+Если `ADMIN_PASSWORD` не задан, вход в админку будет отключён.
+
 ## Запуск
 
 В папке `server`:
@@ -56,7 +73,8 @@ curl http://127.0.0.1:4000/api/health
 
 Если всё работает, ответ вернётся с HTTP 200 и `ok: true`. В ответе есть
 состояние PostgreSQL, счётчики препаратов, диагностик, результатов и количество
-готовых DZI-файлов в `public/slides`.
+готовых DZI-файлов в `public/slides`. Поле `adminAuth.configured` показывает,
+задан ли пароль администратора.
 
 ## Разработка и деплой
 

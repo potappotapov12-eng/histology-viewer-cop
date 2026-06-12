@@ -50,6 +50,21 @@ cd /var/www/histology-viewer-cop
 ./scripts/deploy.sh
 ```
 
+Before opening the site publicly, set admin auth variables for the backend
+service:
+
+```ini
+Environment=ADMIN_PASSWORD=change-this-password
+Environment=ADMIN_SESSION_SECRET=long-random-secret
+```
+
+After changing the systemd unit or override, run:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart histology-viewer
+```
+
 The deploy script:
 
 1. Pulls the latest `main`.
@@ -69,6 +84,7 @@ curl https://your-domain.example/api/health
 ```
 
 The response should have `"ok": true`, `"database": { "ok": true }`, and
-non-zero slide counts if the production database already contains materials.
+`"adminAuth": { "configured": true }`. Slide counts should be non-zero if the
+production database already contains materials.
 
 Slide files are not stored in Git. Keep `public/slides` on the server and update it separately.
