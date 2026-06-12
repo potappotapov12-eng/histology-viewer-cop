@@ -1707,9 +1707,8 @@ a:focus-visible {
 }
 
 .resultsList {
-  position: sticky;
-  top: 18px;
-  max-height: calc(100vh - 36px);
+  position: static;
+  max-height: min(520px, calc(100vh - 220px));
   overflow: auto;
 }
 
