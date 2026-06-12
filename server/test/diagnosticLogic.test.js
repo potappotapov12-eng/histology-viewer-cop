@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  gradeMatchingAnswer,
+  gradeOrderingAnswer,
   gradeNumberAnswer,
   gradeRegionAnswer,
   gradeTextAnswer,
@@ -67,4 +69,60 @@ test('gradeRegionAnswer supports intersection and center modes', () => {
     ),
     false
   );
+});
+
+test('gradeRegionAnswer rejects empty selections and ignores arrows', () => {
+  const question = {
+    regions: [
+      { type: 'arrow', x1: 10, y1: 10, x2: 40, y2: 40 },
+    ],
+    grading: {
+      regionMode: 'intersection',
+      regionThreshold: 20,
+    },
+  };
+
+  assert.equal(gradeRegionAnswer(question, null), false);
+  assert.equal(gradeRegionAnswer(question, { x: 10, y: 10, width: 10, height: 10 }), false);
+});
+
+test('gradeRegionAnswer accepts any matching correct region', () => {
+  const question = {
+    regions: [
+      { type: 'rect', x: 5, y: 5, width: 10, height: 10 },
+      { type: 'rect', x: 60, y: 60, width: 20, height: 20 },
+    ],
+    grading: {
+      regionMode: 'intersection',
+      regionThreshold: 50,
+    },
+  };
+
+  assert.equal(gradeRegionAnswer(question, { x: 62, y: 62, width: 8, height: 8 }), true);
+  assert.equal(gradeRegionAnswer(question, { x: 35, y: 35, width: 8, height: 8 }), false);
+});
+
+test('gradeMatchingAnswer and gradeOrderingAnswer validate structured answers', () => {
+  const matchingQuestion = {
+    answer: {
+      pairs: [
+        { id: 'left-1' },
+        { id: 'left-2' },
+      ],
+    },
+  };
+  const orderingQuestion = {
+    answer: {
+      items: [
+        { id: 'step-1' },
+        { id: 'step-2' },
+        { id: 'step-3' },
+      ],
+    },
+  };
+
+  assert.equal(gradeMatchingAnswer(matchingQuestion, { 'left-1': 'left-1', 'left-2': 'left-2' }), true);
+  assert.equal(gradeMatchingAnswer(matchingQuestion, { 'left-1': 'left-2', 'left-2': 'left-2' }), false);
+  assert.equal(gradeOrderingAnswer(orderingQuestion, ['step-1', 'step-2', 'step-3']), true);
+  assert.equal(gradeOrderingAnswer(orderingQuestion, ['step-2', 'step-1', 'step-3']), false);
 });

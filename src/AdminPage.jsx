@@ -812,11 +812,31 @@ function RegionReviewPreview({ answer, question, slide }) {
     return <p className="adminHint regionReviewEmpty">{error || 'Нет данных для просмотра области.'}</p>;
   }
 
+  const zoomBy = (factor) => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isReady) return;
+    viewer.viewport.zoomBy(factor);
+    viewer.viewport.applyConstraints();
+  };
+
+  const resetView = () => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isReady) return;
+    viewer.viewport.goHome();
+  };
+
   return (
     <div className="regionReviewPreview">
-      <div className="regionReviewLegend">
-        <span><i className="regionReviewSwatch selected" />Ответ студента</span>
-        <span><i className="regionReviewSwatch correct" />Эталон</span>
+      <div className="regionReviewHeader">
+        <div className="regionReviewLegend">
+          <span><i className="regionReviewSwatch selected" />Ответ студента</span>
+          <span><i className="regionReviewSwatch correct" />Эталон</span>
+        </div>
+        <div className="regionReviewControls">
+          <button type="button" onClick={() => zoomBy(0.75)} disabled={!isReady}>−</button>
+          <button type="button" onClick={resetView} disabled={!isReady}>Общий вид</button>
+          <button type="button" onClick={() => zoomBy(1.35)} disabled={!isReady}>+</button>
+        </div>
       </div>
       <div ref={viewerElementRef} className="regionReviewViewer" />
     </div>
@@ -1010,6 +1030,33 @@ function formatReviewAnswer(answer) {
   return (answer.selectedOptions || []).join('; ') || answer.selectedOption || 'Нет ответа';
 }
 
+function getResultReviewState(result) {
+  const answers = Array.isArray(result?.answers) ? result.answers : [];
+  const needsManualReview = answers.some((answer) => answer.needsReview);
+
+  if (result?.reviewedAt) {
+    return 'reviewed';
+  }
+
+  if (needsManualReview) {
+    return 'needs-review';
+  }
+
+  return 'auto';
+}
+
+function getResultSearchText(result) {
+  return [
+    result?.studentName,
+    result?.group,
+    result?.score,
+    result?.total,
+    result?.percent,
+  ]
+    .map((value) => String(value || '').toLowerCase())
+    .join(' ');
+}
+
 function AdminPage() {
   const [slides, setSlides] = useState([]);
   const [status, setStatus] = useState('');
@@ -1035,6 +1082,8 @@ function AdminPage() {
   const [draftStatus, setDraftStatus] = useState('');
   const [slideListSearch, setSlideListSearch] = useState('');
   const [diagnosticStatusFilter, setDiagnosticStatusFilter] = useState('all');
+  const [resultSearch, setResultSearch] = useState('');
+  const [resultReviewFilter, setResultReviewFilter] = useState('all');
 
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
@@ -1084,6 +1133,29 @@ function AdminPage() {
   const slideById = useMemo(() => {
     return new Map(slides.map((slide) => [slide.id, slide]));
   }, [slides]);
+  const resultReviewStats = useMemo(() => {
+    return diagnosticResults.reduce(
+      (stats, result) => {
+        const state = getResultReviewState(result);
+        return {
+          ...stats,
+          [state]: stats[state] + 1,
+        };
+      },
+      { all: diagnosticResults.length, 'needs-review': 0, reviewed: 0, auto: 0 }
+    );
+  }, [diagnosticResults]);
+  const filteredDiagnosticResults = useMemo(() => {
+    const query = resultSearch.trim().toLowerCase();
+
+    return diagnosticResults.filter((result) => {
+      const state = getResultReviewState(result);
+      const matchesFilter = resultReviewFilter === 'all' || state === resultReviewFilter;
+      const matchesSearch = !query || getResultSearchText(result).includes(query);
+
+      return matchesFilter && matchesSearch;
+    });
+  }, [diagnosticResults, resultReviewFilter, resultSearch]);
 
   const loadSlides = async () => {
     const response = await fetch('/api/admin/slides');
@@ -1154,6 +1226,18 @@ function AdminPage() {
       Math.max(0, Math.min(current, Math.max(0, question.regions.length - 1)))
     );
   }, [activeDiagnosticQuestion]);
+
+  useEffect(() => {
+    if (!selectedDiagnosticForResults) return;
+    if (filteredDiagnosticResults.length === 0) {
+      setSelectedResult(null);
+      return;
+    }
+
+    if (!selectedResult || !filteredDiagnosticResults.some((result) => result.id === selectedResult.id)) {
+      setSelectedResult(filteredDiagnosticResults[0]);
+    }
+  }, [filteredDiagnosticResults, selectedDiagnosticForResults, selectedResult]);
 
   const waitForJob = async (jobId) => {
     return new Promise((resolve, reject) => {
@@ -2957,8 +3041,43 @@ function AdminPage() {
             </div>
 
             <div className="resultsReviewLayout">
-              <div className="resultsList">
-                {diagnosticResults.map((result) => (
+              <aside className="resultsSidebar">
+                <div className="resultsReviewTools">
+                  <label>
+                    Поиск результата
+                    <input
+                      value={resultSearch}
+                      onChange={(event) => setResultSearch(event.target.value)}
+                      placeholder="ФИО или группа"
+                    />
+                  </label>
+                  <div className="resultFilterTabs" aria-label="Фильтр результатов">
+                    <button
+                      type="button"
+                      className={resultReviewFilter === 'all' ? 'active' : ''}
+                      onClick={() => setResultReviewFilter('all')}
+                    >
+                      Все <span>{resultReviewStats.all}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={resultReviewFilter === 'needs-review' ? 'active' : ''}
+                      onClick={() => setResultReviewFilter('needs-review')}
+                    >
+                      На проверку <span>{resultReviewStats['needs-review']}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={resultReviewFilter === 'reviewed' ? 'active' : ''}
+                      onClick={() => setResultReviewFilter('reviewed')}
+                    >
+                      Проверены <span>{resultReviewStats.reviewed}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="resultsList">
+                {filteredDiagnosticResults.map((result) => (
                   <button
                     type="button"
                     key={result.id}
@@ -2967,10 +3086,20 @@ function AdminPage() {
                   >
                     <strong>{result.studentName}</strong>
                     <span>{result.group} · {result.score} / {result.total} · {result.percent}%</span>
+                    {getResultReviewState(result) === 'needs-review' && (
+                      <em>Требует ручной проверки</em>
+                    )}
+                    {getResultReviewState(result) === 'reviewed' && (
+                      <em>Проверено</em>
+                    )}
                   </button>
                 ))}
                 {diagnosticResults.length === 0 && <p className="adminHint">Результатов пока нет.</p>}
-              </div>
+                {diagnosticResults.length > 0 && filteredDiagnosticResults.length === 0 && (
+                  <p className="adminHint">По выбранному фильтру результатов нет.</p>
+                )}
+                </div>
+              </aside>
 
               {selectedResult ? (
                 <div className="resultReviewPanel">
