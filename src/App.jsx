@@ -891,6 +891,7 @@ function ViewerApp() {
   const [isLoadingSlides, setIsLoadingSlides] = useState(true);
   const [slidesError, setSlidesError] = useState('');
   const [viewerLoadError, setViewerLoadError] = useState('');
+  const [viewerStatus, setViewerStatus] = useState('idle');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1002,6 +1003,7 @@ function ViewerApp() {
     setIsAnswerVisible(false);
     setActiveMarker(null);
     setViewerLoadError('');
+    setViewerStatus('loading');
   }, [selectedSlide?.id]);
 
   useEffect(() => {
@@ -1013,37 +1015,48 @@ function ViewerApp() {
 
     if (!tileSources) {
       setViewerLoadError('У препарата не указан DZI-адрес или файл изображения.');
+      setViewerStatus('error');
       return undefined;
     }
 
     viewerRef.current?.destroy();
     setViewerLoadError('');
+    setViewerStatus('loading');
 
-    import('openseadragon').then(({ default: OpenSeadragon }) => {
-      if (isCancelled) return;
+    import('openseadragon')
+      .then(({ default: OpenSeadragon }) => {
+        if (isCancelled) return;
 
-      const viewer = OpenSeadragon({
-        element: viewerElement,
-        prefixUrl: '/openseadragon/images/',
-        tileSources,
-        showNavigator: true,
-        showRotationControl: true,
-        animationTime: 0.5,
-        blendTime: 0.1,
-        maxZoomPixelRatio: 8,
-        visibilityRatio: 1,
-        constrainDuringPan: true,
-        gestureSettingsMouse: {
-          scrollToZoom: true,
-          clickToZoom: false,
-          dblClickToZoom: true,
-        },
+        const viewer = OpenSeadragon({
+          element: viewerElement,
+          prefixUrl: '/openseadragon/images/',
+          tileSources,
+          showNavigator: true,
+          showRotationControl: true,
+          animationTime: 0.5,
+          blendTime: 0.1,
+          maxZoomPixelRatio: 8,
+          visibilityRatio: 1,
+          constrainDuringPan: true,
+          gestureSettingsMouse: {
+            scrollToZoom: true,
+            clickToZoom: false,
+            dblClickToZoom: true,
+          },
+        });
+        viewer.addHandler('open', () => {
+          setViewerStatus('ready');
+        });
+        viewer.addHandler('open-failed', () => {
+          setViewerStatus('error');
+          setViewerLoadError('Не удалось загрузить изображение препарата. Проверьте DZI-адрес и наличие тайлов.');
+        });
+        viewerRef.current = viewer;
+      })
+      .catch(() => {
+        setViewerStatus('error');
+        setViewerLoadError('Не удалось загрузить модуль просмотра препарата.');
       });
-      viewer.addHandler('open-failed', () => {
-        setViewerLoadError('Не удалось загрузить изображение препарата. Проверьте DZI-адрес и наличие тайлов.');
-      });
-      viewerRef.current = viewer;
-    });
 
     return () => {
       isCancelled = true;
@@ -1053,6 +1066,7 @@ function ViewerApp() {
       }
       viewerRef.current?.destroy();
       viewerRef.current = null;
+      setViewerStatus('idle');
     };
   }, [selectedSlide?.id, selectedSlide?.source]);
 
@@ -1177,6 +1191,12 @@ function ViewerApp() {
                 </div>
               )}
               <div ref={viewerElementRef} className="viewer" />
+              {viewerStatus === 'loading' && !viewerLoadError && (
+                <div className="viewerLoading" role="status" aria-live="polite">
+                  <span />
+                  Загрузка препарата...
+                </div>
+              )}
             </section>
 
             {isInfoVisible && (
