@@ -698,6 +698,70 @@ function HighlightPicker({ slide, highlight, markerType = 'rect', onChange }) {
   );
 }
 
+function SlideMiniPreview({ source }) {
+  const viewerElementRef = useRef(null);
+  const viewerRef = useRef(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let isCancelled = false;
+    const element = viewerElementRef.current;
+    const tileSources = createTileSource(source);
+
+    if (!element || !tileSources) return undefined;
+
+    setError('');
+    viewerRef.current?.destroy();
+
+    import('openseadragon')
+      .then(({ default: OpenSeadragon }) => {
+        if (isCancelled) return;
+
+        const viewer = OpenSeadragon({
+          element,
+          prefixUrl: '/openseadragon/images/',
+          tileSources,
+          showNavigator: false,
+          showNavigationControl: false,
+          animationTime: 0.2,
+          blendTime: 0.1,
+          visibilityRatio: 1,
+          constrainDuringPan: true,
+          gestureSettingsMouse: {
+            scrollToZoom: true,
+            clickToZoom: false,
+            dblClickToZoom: false,
+          },
+        });
+
+        viewer.addHandler('open', () => {
+          viewer.viewport.goHome(true);
+        });
+        viewer.addHandler('open-failed', () => {
+          setError('Не удалось открыть предпросмотр.');
+        });
+
+        viewerRef.current = viewer;
+      })
+      .catch(() => {
+        setError('Не удалось загрузить viewer.');
+      });
+
+    return () => {
+      isCancelled = true;
+      viewerRef.current?.destroy();
+      viewerRef.current = null;
+    };
+  }, [source]);
+
+  return (
+    <div className="slideMiniPreview">
+      <div ref={viewerElementRef} className="slideMiniViewer" />
+      {error && <p>{error}</p>}
+    </div>
+  );
+}
+
 function RegionReviewPreview({ answer, question, slide }) {
   const viewerElementRef = useRef(null);
   const viewerRef = useRef(null);
@@ -1012,6 +1076,13 @@ function slugifyAdminId(value) {
     .replace(/^-+|-+$/g, '');
 }
 
+function getSlideStatusClass(status) {
+  if (status === 'ready') return 'ready';
+  if (status === 'external') return 'external';
+  if (status === 'missing') return 'missing';
+  return 'invalid';
+}
+
 function getDiagnosticValidationWarnings(diagnostic, slides) {
   const slideById = new Map(slides.map((slide) => [slide.id, slide]));
   const warnings = [];
@@ -1249,6 +1320,7 @@ function AdminDashboard({ onLogout }) {
   const [backups, setBackups] = useState([]);
   const [backupStatus, setBackupStatus] = useState('');
   const [isBackupBusy, setIsBackupBusy] = useState(false);
+  const [previewSlideId, setPreviewSlideId] = useState('');
 
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
@@ -2514,15 +2586,37 @@ function AdminDashboard({ onLogout }) {
                 <div>
                   <strong>{slide.title}</strong>
                   <code className="adminSlideId">ID: {slide.id}</code>
+                  <div className="adminSlideStatusRow">
+                    <span className={`adminSlideStatus ${getSlideStatusClass(slide.fileStatus?.status)}`}>
+                      {slide.fileStatus?.label || 'Статус неизвестен'}
+                    </span>
+                    {slide.fileStatus?.details && (
+                      <small>{slide.fileStatus.details}</small>
+                    )}
+                  </div>
                   <span>
                     {slide.lesson ? `${slide.lesson} · ` : ''}
                     {slide.system || 'Без раздела'} ·{' '}
                     {slide.organ || 'Орган не указан'} ·{' '}
                     {slide.stain || 'Окраска не указана'}
                   </span>
+                  {previewSlideId === slide.id && (
+                    <SlideMiniPreview source={slide.source} />
+                  )}
                 </div>
 
                 <div className="adminSlideActions">
+                  <button
+                    type="button"
+                    className="adminSecondaryButton"
+                    disabled={!slide.fileStatus?.previewable}
+                    onClick={() =>
+                      setPreviewSlideId((current) => (current === slide.id ? '' : slide.id))
+                    }
+                  >
+                    {previewSlideId === slide.id ? 'Скрыть' : 'Просмотр'}
+                  </button>
+
                   <button
                     type="button"
                     className="adminSecondaryButton"

@@ -1637,6 +1637,157 @@ async function ensureDziOutput(outputBase) {
   }
 }
 
+async function countDirectoryFiles(directoryPath, limit = 5000) {
+  if (limit <= 0) {
+    return { count: 0, capped: true };
+  }
+
+  try {
+    const entries = await fs.readdir(directoryPath, { withFileTypes: true });
+    let count = 0;
+    let capped = false;
+
+    for (const entry of entries) {
+      const entryPath = path.join(directoryPath, entry.name);
+      if (entry.isFile()) {
+        count += 1;
+      } else if (entry.isDirectory()) {
+        const nested = await countDirectoryFiles(entryPath, limit - count);
+        count += nested.count;
+        capped = capped || nested.capped;
+      }
+
+      if (count >= limit) {
+        capped = true;
+        break;
+      }
+    }
+
+    return { count, capped };
+  } catch {
+    return { count: 0, capped: false };
+  }
+}
+
+function getPublicSlidePath(source) {
+  const normalizedSource = String(source || '').trim();
+
+  if (!normalizedSource.startsWith('/slides/')) return null;
+  if (normalizedSource.includes('..')) return null;
+
+  return path.join(PUBLIC_SLIDES_DIR, normalizedSource.replace(/^\/slides\//, ''));
+}
+
+async function getSlideFileStatus(slide) {
+  const source = String(slide?.source || '').trim();
+
+  if (!source) {
+    return {
+      status: 'missing',
+      label: 'Нет источника',
+      details: 'У препарата не указан DZI-адрес или файл.',
+      previewable: false,
+    };
+  }
+
+  if (!source.endsWith('.dzi')) {
+    return {
+      status: 'external',
+      label: 'Внешний источник',
+      details: 'Источник не является DZI-файлом в локальном хранилище.',
+      previewable: true,
+    };
+  }
+
+  const dziPath = getPublicSlidePath(source);
+
+  if (!dziPath) {
+    return {
+      status: 'external',
+      label: 'Внешний DZI',
+      details: 'DZI-адрес находится вне локальной папки /slides.',
+      previewable: true,
+    };
+  }
+
+  if (!(await pathExists(dziPath))) {
+    return {
+      status: 'missing',
+      label: 'DZI не найден',
+      details: `Файл отсутствует: ${source}`,
+      previewable: false,
+    };
+  }
+
+  try {
+    const dziContent = await fs.readFile(dziPath, 'utf8');
+    const tilesFolderName =
+      getDziTilesFolderName(dziContent) ||
+      `${path.basename(dziPath, '.dzi')}_files`;
+    const tilesPath = path.join(path.dirname(dziPath), tilesFolderName);
+    const dziStats = await fs.stat(dziPath);
+
+    if (!/<Image\b/i.test(dziContent) || !/<Size\b/i.test(dziContent)) {
+      return {
+        status: 'invalid',
+        label: 'DZI поврежден',
+        details: 'DZI-файл не содержит корректную структуру Deep Zoom.',
+        previewable: false,
+        sizeBytes: dziStats.size,
+      };
+    }
+
+    if (!(await pathExists(tilesPath))) {
+      return {
+        status: 'missing',
+        label: 'Тайлы не найдены',
+        details: `Папка тайлов отсутствует: ${path.basename(tilesPath)}`,
+        previewable: false,
+        sizeBytes: dziStats.size,
+      };
+    }
+
+    const tileStats = await countDirectoryFiles(tilesPath);
+
+    if (tileStats.count === 0) {
+      return {
+        status: 'invalid',
+        label: 'Нет тайлов',
+        details: `Папка тайлов пуста: ${path.basename(tilesPath)}`,
+        previewable: false,
+        sizeBytes: dziStats.size,
+        tileCount: tileStats.count,
+      };
+    }
+
+    return {
+      status: 'ready',
+      label: 'Готов',
+      details: `DZI и тайлы найдены: ${tileStats.count}${tileStats.capped ? '+' : ''} файлов`,
+      previewable: true,
+      sizeBytes: dziStats.size,
+      tileCount: tileStats.count,
+      tileCountCapped: tileStats.capped,
+    };
+  } catch (error) {
+    return {
+      status: 'invalid',
+      label: 'Ошибка проверки',
+      details: error.message,
+      previewable: false,
+    };
+  }
+}
+
+async function withSlideAdminMetadata(slides) {
+  return Promise.all(
+    slides.map(async (slide) => ({
+      ...slide,
+      fileStatus: await getSlideFileStatus(slide),
+    }))
+  );
+}
+
 function getFriendlyConversionError(inputPath, error) {
   const ext = path.extname(inputPath).toLowerCase();
   const details = String(error?.stderr || error?.message || '');
@@ -1804,7 +1955,7 @@ app.use('/api/admin', requireAdmin);
 
 app.get('/api/admin/slides', async (req, res) => {
   const slides = await readSlides();
-  res.json(slides);
+  res.json(await withSlideAdminMetadata(slides));
 });
 
 app.get('/api/admin/diagnostics', async (req, res) => {
