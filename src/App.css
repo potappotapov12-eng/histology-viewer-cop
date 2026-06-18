@@ -1579,8 +1579,46 @@ a:focus-visible {
 }
 
 .diagnosticsEditor,
-.resultsReviewCard {
+.resultsReviewCard,
+.backupsCard {
   grid-column: 1 / -1;
+}
+
+.backupList {
+  display: grid;
+  gap: 10px;
+}
+
+.backupItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.backupItem strong,
+.backupItem span,
+.backupItem small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.backupItem span,
+.backupItem small {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.backupActions {
+  display: grid;
+  grid-template-columns: 108px 132px;
+  gap: 8px;
 }
 
 .adminCardHeader {
@@ -1678,6 +1716,20 @@ a:focus-visible {
 
 .adminSlideItem strong {
   line-height: 1.25;
+}
+
+.adminSlideId {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 5px;
+  padding: 3px 6px;
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .adminSlideItem span {
@@ -2322,6 +2374,11 @@ a:focus-visible {
 .adminHint {
   color: #6b7280;
   line-height: 1.45;
+}
+
+.adminWarning {
+  color: #92400e;
+  font-weight: 600;
 }
 
 .diagnosticDraftBar,
@@ -3507,6 +3564,11 @@ a:focus-visible {
 
   .slideListCard .adminSlideActions {
     width: 100%;
+  }
+
+  .backupItem,
+  .backupActions {
+    grid-template-columns: 1fr;
   }
 
   .highlightGrid {

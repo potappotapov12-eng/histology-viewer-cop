@@ -16,6 +16,8 @@ dist-ssr
 # Large slide data is deployed separately, not through GitHub.
 raw-slides/
 public/slides/
+server/data/backups/
+server/data/upload-logs/
 
 # Editor directories and files
 .vscode/*

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
+import { constants as fsConstants } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import AdmZip from 'adm-zip';
@@ -27,6 +28,7 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(__dirname, 'data');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const UPLOAD_LOG_DIR = path.join(DATA_DIR, 'upload-logs');
 const SLIDES_JSON = path.join(DATA_DIR, 'slides.json');
 const DIAGNOSTICS_JSON = path.join(DATA_DIR, 'diagnostics.json');
 const DIAGNOSTIC_RESULTS_JSON = path.join(DATA_DIR, 'diagnostic-results.json');
@@ -58,9 +60,26 @@ const ALLOWED_SLIDE_EXTENSIONS = new Set([
   '.tiff',
   '.ndpi',
   '.scn',
+  '.kfb',
   '.mrxs',
   '.zip',
 ]);
+
+const OPENSLIDE_SLIDE_EXTENSIONS = [
+  '.svs',
+  '.vms',
+  '.vmu',
+  '.ndpi',
+  '.scn',
+  '.mrxs',
+  '.svslide',
+  '.tif',
+  '.bif',
+  '.dcm',
+];
+
+const BACKUP_STORES = ['slides', 'diagnostics', 'diagnostic_results'];
+const BACKUP_SNAPSHOT_PREFIX = 'snapshot';
 
 const jobs = new Map();
 
@@ -207,6 +226,7 @@ function isAdminPasswordValid(value) {
 
 await fs.mkdir(DATA_DIR, { recursive: true });
 await fs.mkdir(BACKUP_DIR, { recursive: true });
+await fs.mkdir(UPLOAD_LOG_DIR, { recursive: true });
 await fs.mkdir(RAW_SLIDES_DIR, { recursive: true });
 await fs.mkdir(PUBLIC_SLIDES_DIR, { recursive: true });
 
@@ -325,6 +345,96 @@ async function backupJsonStore(tableName, items) {
   await fs.writeFile(backupPath, `${JSON.stringify(items, null, 2)}\n`, 'utf8');
 }
 
+async function createDataSnapshotBackup() {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backup = {
+    version: 1,
+    type: 'full-data-snapshot',
+    createdAt: new Date().toISOString(),
+    stores: {
+      slides: await readJsonItems('slides'),
+      diagnostics: await readJsonItems('diagnostics'),
+      diagnostic_results: await readJsonItems('diagnostic_results'),
+    },
+  };
+  const fileName = `${BACKUP_SNAPSHOT_PREFIX}-${timestamp}.json`;
+  const backupPath = path.join(BACKUP_DIR, fileName);
+
+  await fs.writeFile(backupPath, `${JSON.stringify(backup, null, 2)}\n`, 'utf8');
+
+  return {
+    fileName,
+    createdAt: backup.createdAt,
+    counts: Object.fromEntries(
+      Object.entries(backup.stores).map(([store, items]) => [store, items.length])
+    ),
+  };
+}
+
+function getBackupFilePath(fileName) {
+  const rawName = String(fileName || '');
+  const safeName = path.basename(rawName);
+
+  if (!safeName || safeName !== rawName || !safeName.endsWith('.json')) {
+    throw new Error('Некорректное имя backup-файла');
+  }
+
+  return path.join(BACKUP_DIR, safeName);
+}
+
+async function readDataSnapshotBackup(fileName) {
+  const backupPath = getBackupFilePath(fileName);
+  const data = JSON.parse(await fs.readFile(backupPath, 'utf8'));
+
+  if (data?.type !== 'full-data-snapshot' || typeof data.stores !== 'object') {
+    throw new Error('Этот backup не является полным снимком данных');
+  }
+
+  for (const store of BACKUP_STORES) {
+    if (!Array.isArray(data.stores[store])) {
+      throw new Error(`В backup отсутствует раздел: ${store}`);
+    }
+  }
+
+  return data;
+}
+
+async function listDataBackups() {
+  const entries = await fs.readdir(BACKUP_DIR, { withFileTypes: true });
+  const backups = [];
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+
+    const backupPath = path.join(BACKUP_DIR, entry.name);
+    const stats = await fs.stat(backupPath);
+    const item = {
+      fileName: entry.name,
+      sizeBytes: stats.size,
+      createdAt: stats.mtime.toISOString(),
+      restorable: entry.name.startsWith(`${BACKUP_SNAPSHOT_PREFIX}-`),
+      counts: null,
+    };
+
+    if (item.restorable) {
+      try {
+        const data = await readDataSnapshotBackup(entry.name);
+        item.createdAt = data.createdAt || item.createdAt;
+        item.counts = Object.fromEntries(
+          BACKUP_STORES.map((store) => [store, data.stores[store].length])
+        );
+      } catch (error) {
+        item.restorable = false;
+        item.error = error.message;
+      }
+    }
+
+    backups.push(item);
+  }
+
+  return backups.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 async function readJsonItems(tableName, { diagnosticId = null } = {}) {
   if (tableName === 'diagnostic_results') {
     const params = [];
@@ -441,10 +551,76 @@ async function getHealthReport() {
       },
     },
     storage: {
-      publicSlidesDir: PUBLIC_SLIDES_DIR,
+      rawSlidesDir: {
+        ok: false,
+        path: RAW_SLIDES_DIR,
+      },
+      publicSlidesDir: {
+        ok: false,
+        path: PUBLIC_SLIDES_DIR,
+      },
+      uploadLogDir: {
+        ok: false,
+        path: UPLOAD_LOG_DIR,
+      },
       dziFiles: await countPublicSlideFiles(),
     },
+    conversion: {
+      vips: {
+        ok: false,
+        version: null,
+      },
+      openslide: {
+        availableViaVips: false,
+        supportedExtensions: [],
+      },
+      acceptedUploadExtensions: [...ALLOWED_SLIDE_EXTENSIONS],
+      notes: [],
+    },
   };
+
+  const [rawSlidesDir, publicSlidesDir, uploadLogDir, vips] = await Promise.all([
+    getDirectoryStatus(RAW_SLIDES_DIR),
+    getDirectoryStatus(PUBLIC_SLIDES_DIR),
+    getDirectoryStatus(UPLOAD_LOG_DIR),
+    getCommandVersion('vips'),
+  ]);
+
+  report.storage.rawSlidesDir = rawSlidesDir;
+  report.storage.publicSlidesDir = publicSlidesDir;
+  report.storage.uploadLogDir = uploadLogDir;
+  report.conversion.vips = vips;
+
+  if (!rawSlidesDir.ok || !publicSlidesDir.ok || !uploadLogDir.ok || !vips.ok) {
+    report.ok = false;
+  }
+
+  if (vips.ok) {
+    try {
+      const { stdout } = await execFileAsync('vips', ['list', 'classes']);
+      const openslideAvailable = stdout.includes('VipsForeignLoadOpenslide');
+      report.conversion.openslide.availableViaVips = openslideAvailable;
+      report.conversion.openslide.supportedExtensions = openslideAvailable
+        ? OPENSLIDE_SLIDE_EXTENSIONS
+        : [];
+
+      if (!openslideAvailable) {
+        report.ok = false;
+        report.conversion.notes.push(
+          'libvips установлен, но загрузчик OpenSlide недоступен. SVS/NDPI/SCN/MRXS могут не конвертироваться.'
+        );
+      }
+    } catch (error) {
+      report.ok = false;
+      report.conversion.openslide.error = error.message;
+    }
+  }
+
+  if (!report.conversion.openslide.supportedExtensions.includes('.kfb')) {
+    report.conversion.notes.push(
+      'KFB принят формой загрузки, но текущий libvips/OpenSlide обычно не читает KFB напрямую. Используйте экспорт в DZI/TIFF/SVS или отдельный KFB-конвертер.'
+    );
+  }
 
   try {
     const dbStartedAt = Date.now();
@@ -1237,6 +1413,44 @@ async function removeIfExists(filePath) {
   }
 }
 
+async function getCommandVersion(command, args = ['--version']) {
+  try {
+    const { stdout, stderr } = await execFileAsync(command, args);
+    return {
+      ok: true,
+      version: String(stdout || stderr).trim().split('\n')[0] || null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.code === 'ENOENT'
+        ? `Команда ${command} не найдена`
+        : error.message,
+    };
+  }
+}
+
+async function getDirectoryStatus(directoryPath) {
+  try {
+    await fs.access(directoryPath, fsConstants.R_OK | fsConstants.W_OK);
+
+    return {
+      ok: true,
+      path: directoryPath,
+      readable: true,
+      writable: true,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      path: directoryPath,
+      readable: false,
+      writable: false,
+      error: error.message,
+    };
+  }
+}
+
 async function findFileByExtension(directoryPath, extension) {
   const entries = await fs.readdir(directoryPath, { withFileTypes: true });
 
@@ -1354,7 +1568,7 @@ async function prepareSlideFile(uploadedFile, slideId) {
     await fs.unlink(uploadedFile.path);
 
     throw new Error(
-      'Неподдерживаемый формат файла. Разрешены: .svs, .tif, .tiff, .ndpi, .scn, .mrxs, .zip'
+      'Неподдерживаемый формат файла. Разрешены: .svs, .tif, .tiff, .ndpi, .scn, .kfb, .mrxs, .zip'
     );
   }
 
@@ -1404,13 +1618,114 @@ async function prepareSlideFile(uploadedFile, slideId) {
   };
 }
 
+async function ensureDziOutput(outputBase) {
+  const dziPath = `${outputBase}.dzi`;
+  const tilesDir = `${outputBase}_files`;
+
+  if (!(await pathExists(dziPath))) {
+    throw new Error('Конвертация завершилась без DZI-файла результата');
+  }
+
+  if (!(await pathExists(tilesDir))) {
+    throw new Error('Конвертация завершилась без папки тайлов DZI');
+  }
+
+  const dziContent = await fs.readFile(dziPath, 'utf8');
+
+  if (!/<Image\b/i.test(dziContent) || !/<Size\b/i.test(dziContent)) {
+    throw new Error('Созданный DZI-файл не похож на корректный Deep Zoom Image');
+  }
+}
+
+function getFriendlyConversionError(inputPath, error) {
+  const ext = path.extname(inputPath).toLowerCase();
+  const details = String(error?.stderr || error?.message || '');
+
+  if (error?.code === 'ENOENT') {
+    return new Error(
+      'На сервере не найдена команда vips. Установите libvips для конвертации препаратов в DZI.',
+      { cause: error }
+    );
+  }
+
+  if (ext === '.kfb' && details.includes('not a known file format')) {
+    return new Error(
+      'KFB-файл принят, но текущая сборка libvips/OpenSlide на сервере не умеет читать KFB. Экспортируйте препарат в TIFF/SVS/DZI или установите серверный KFB-конвертер.',
+      { cause: error }
+    );
+  }
+
+  if (details.includes('not a known file format')) {
+    return new Error(
+      'Файл принят, но libvips не смог распознать его формат. Проверьте, что файл не поврежден и что сервер поддерживает этот тип препарата.',
+      { cause: error }
+    );
+  }
+
+  return error;
+}
+
+async function writeUploadErrorLog({ slideId, inputPath, outputBase, error, startedAt }) {
+  const timestamp = new Date().toISOString();
+  const logName = `${timestamp.replace(/[:.]/g, '-')}-${slugify(slideId || 'slide')}.json`;
+  let inputStats;
+
+  try {
+    const stats = await fs.stat(inputPath);
+    inputStats = {
+      sizeBytes: stats.size,
+      modifiedAt: stats.mtime.toISOString(),
+    };
+  } catch {
+    inputStats = null;
+  }
+
+  const log = {
+    timestamp,
+    slideId,
+    inputPath,
+    outputBase,
+    extension: path.extname(inputPath).toLowerCase(),
+    durationMs: startedAt ? Date.now() - startedAt : null,
+    inputStats,
+    error: {
+      message: error?.message || String(error),
+      code: error?.code || null,
+      signal: error?.signal || null,
+      stdout: String(error?.stdout || ''),
+      stderr: String(error?.stderr || ''),
+    },
+  };
+
+  await fs.writeFile(
+    path.join(UPLOAD_LOG_DIR, logName),
+    `${JSON.stringify(log, null, 2)}\n`,
+    'utf8'
+  );
+}
+
 async function convertSlideToDzi(inputPath, slideId) {
   const outputBase = path.join(PUBLIC_SLIDES_DIR, slideId);
+  const startedAt = Date.now();
 
   await removeIfExists(`${outputBase}.dzi`);
   await removeIfExists(`${outputBase}_files`);
 
-  await execFileAsync('vips', ['dzsave', inputPath, outputBase]);
+  try {
+    await execFileAsync('vips', ['dzsave', inputPath, outputBase]);
+  } catch (error) {
+    await writeUploadErrorLog({
+      slideId,
+      inputPath,
+      outputBase,
+      error,
+      startedAt,
+    });
+
+    throw getFriendlyConversionError(inputPath, error);
+  }
+
+  await ensureDziOutput(outputBase);
 
   return `/slides/${slideId}.dzi`;
 }
@@ -1752,6 +2067,71 @@ app.get('/api/admin/diagnostics/:id/preview', async (req, res) => {
   });
 });
 
+app.get('/api/admin/backups', async (req, res) => {
+  try {
+    res.json(await listDataBackups());
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+app.post('/api/admin/backups', async (req, res) => {
+  try {
+    const backup = await createDataSnapshotBackup();
+
+    res.json({
+      ok: true,
+      backup,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+app.get('/api/admin/backups/:fileName', async (req, res) => {
+  try {
+    const backupPath = getBackupFilePath(req.params.fileName);
+
+    if (!(await pathExists(backupPath))) {
+      return res.status(404).json({
+        error: 'Backup-файл не найден',
+      });
+    }
+
+    return res.download(backupPath);
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message,
+    });
+  }
+});
+
+app.post('/api/admin/backups/:fileName/restore', async (req, res) => {
+  try {
+    const backup = await readDataSnapshotBackup(req.params.fileName);
+
+    for (const store of BACKUP_STORES) {
+      await replaceJsonItems(store, backup.stores[store]);
+    }
+
+    res.json({
+      ok: true,
+      restoredFrom: req.params.fileName,
+      counts: Object.fromEntries(
+        BACKUP_STORES.map((store) => [store, backup.stores[store].length])
+      ),
+    });
+  } catch (error) {
+    res.status(400).json({
+      error: error.message,
+    });
+  }
+});
+
 app.get('/api/diagnostics/:id', async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
   const diagnostic = diagnostics.find((item) => item.id === req.params.id);
@@ -2035,6 +2415,15 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
 
     if (!slideId) {
       throw new Error('Не удалось создать ID препарата');
+    }
+
+    const slides = await readSlides();
+    const existingSlide = slides.find((slide) => slide.id === slideId);
+
+    if (existingSlide) {
+      throw new Error(
+        `ID препарата "${slideId}" уже занят: ${existingSlide.title || 'без названия'}. Выберите другой ID или отредактируйте существующий препарат.`
+      );
     }
 
     if (!req.file && !String(source || '').trim()) {

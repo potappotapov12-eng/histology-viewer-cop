@@ -103,6 +103,20 @@ function toYekaterinburgDateTimeLocal(value) {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
+function formatBackupDate(value) {
+  if (!value) return 'Дата неизвестна';
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU');
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} Б`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} КБ`;
+  return `${(value / 1024 / 1024).toFixed(1)} МБ`;
+}
+
 function createTileSource(source) {
   if (!source) return null;
 
@@ -979,6 +993,25 @@ function getSlideSearchText(slide) {
     .join(' ');
 }
 
+function slugifyAdminId(value) {
+  const cyrillicMap = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e',
+    ж: 'zh', з: 'z', и: 'i', й: 'i', к: 'k', л: 'l', м: 'm',
+    н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u',
+    ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch',
+    ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+  };
+
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .split('')
+    .map((char) => cyrillicMap[char] ?? char)
+    .join('')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function getDiagnosticValidationWarnings(diagnostic, slides) {
   const slideById = new Map(slides.map((slide) => [slide.id, slide]));
   const warnings = [];
@@ -1213,6 +1246,9 @@ function AdminDashboard({ onLogout }) {
   const [diagnosticStatusFilter, setDiagnosticStatusFilter] = useState('all');
   const [resultSearch, setResultSearch] = useState('');
   const [resultReviewFilter, setResultReviewFilter] = useState('all');
+  const [backups, setBackups] = useState([]);
+  const [backupStatus, setBackupStatus] = useState('');
+  const [isBackupBusy, setIsBackupBusy] = useState(false);
 
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
@@ -1248,6 +1284,10 @@ function AdminDashboard({ onLogout }) {
     if (!query) return slides;
     return slides.filter((slide) => getSlideSearchText(slide).includes(query));
   }, [slideListSearch, slides]);
+  const normalizedSlideFormId = slugifyAdminId(form.id);
+  const occupiedSlideId = !isEditing && normalizedSlideFormId
+    ? slides.find((slide) => slide.id === normalizedSlideFormId)
+    : null;
   const filteredAdminDiagnostics = useMemo(() => {
     return diagnostics.filter((diagnostic) => {
       if (diagnosticStatusFilter === 'all') return true;
@@ -1308,12 +1348,26 @@ function AdminDashboard({ onLogout }) {
     setDiagnostics(Array.isArray(data) ? data : []);
   };
 
+  const loadBackups = async () => {
+    const response = await fetch('/api/admin/backups');
+
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки backup: ${response.status}`);
+    }
+
+    const data = await response.json();
+    setBackups(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
     loadSlides().catch((error) => {
       setStatus(`Ошибка: ${error.message}`);
     });
     loadDiagnostics().catch((error) => {
       setDiagnosticStatus(`Ошибка: ${error.message}`);
+    });
+    loadBackups().catch((error) => {
+      setBackupStatus(`Ошибка: ${error.message}`);
     });
   }, []);
 
@@ -1517,6 +1571,13 @@ function AdminDashboard({ onLogout }) {
 
   const submitForm = async (event) => {
     event.preventDefault();
+
+    if (occupiedSlideId) {
+      setStatus(
+        `Ошибка: ID "${occupiedSlideId.id}" уже занят препаратом "${occupiedSlideId.title}". Выберите другой ID или откройте этот препарат на редактирование.`
+      );
+      return;
+    }
 
     setIsLoading(true);
     setJobProgress(file ? 0 : null);
@@ -1959,6 +2020,62 @@ function AdminDashboard({ onLogout }) {
     }
   };
 
+  const createBackup = async () => {
+    setIsBackupBusy(true);
+    setBackupStatus('Создание backup...');
+
+    try {
+      const response = await fetch('/api/admin/backups', {
+        method: 'POST',
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Не удалось создать backup');
+      }
+
+      setBackupStatus(`Backup создан: ${result.backup.fileName}`);
+      await loadBackups();
+    } catch (error) {
+      setBackupStatus(`Ошибка: ${error.message}`);
+    } finally {
+      setIsBackupBusy(false);
+    }
+  };
+
+  const restoreBackup = async (backup) => {
+    if (!backup?.restorable) return;
+
+    if (
+      !window.confirm(
+        `Восстановить данные из ${backup.fileName}? Текущие препараты, диагностики и результаты будут заменены.`
+      )
+    ) {
+      return;
+    }
+
+    setIsBackupBusy(true);
+    setBackupStatus('Восстановление backup...');
+
+    try {
+      const response = await fetch(`/api/admin/backups/${encodeURIComponent(backup.fileName)}/restore`, {
+        method: 'POST',
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Не удалось восстановить backup');
+      }
+
+      setBackupStatus(`Данные восстановлены из ${result.restoredFrom}`);
+      await Promise.all([loadSlides(), loadDiagnostics(), loadBackups()]);
+    } catch (error) {
+      setBackupStatus(`Ошибка: ${error.message}`);
+    } finally {
+      setIsBackupBusy(false);
+    }
+  };
+
   const deleteDiagnostic = async (id) => {
     if (!window.confirm('Удалить диагностику? Уже выгруженные результаты останутся в файле результатов.')) {
       return;
@@ -2091,6 +2208,13 @@ function AdminDashboard({ onLogout }) {
         >
           Диагностики
         </button>
+        <button
+          type="button"
+          className={activeAdminTab === 'backups' ? 'active' : ''}
+          onClick={() => setActiveAdminTab('backups')}
+        >
+          Backups
+        </button>
       </nav>
 
       <main className="adminLayout">
@@ -2128,6 +2252,13 @@ function AdminDashboard({ onLogout }) {
                 disabled={isEditing}
               />
             </label>
+
+            {occupiedSlideId && (
+              <p className="adminHint adminWarning">
+                ID уже занят препаратом: {occupiedSlideId.title}. Выберите другой
+                ID или отредактируйте существующую карточку.
+              </p>
+            )}
 
             <label>
               Название
@@ -2315,11 +2446,11 @@ function AdminDashboard({ onLogout }) {
             </label>
 
             <label>
-              Файл препарата: SVS / TIFF / NDPI / SCN / MRXS ZIP / DZI ZIP
+              Файл препарата: SVS / TIFF / NDPI / SCN / KFB / MRXS ZIP / DZI ZIP
               <input
                 id="slideFile"
                 type="file"
-                accept=".svs,.tif,.tiff,.ndpi,.scn,.mrxs,.zip"
+                accept=".svs,.tif,.tiff,.ndpi,.scn,.kfb,.mrxs,.zip"
                 onChange={(event) => setFile(event.target.files?.[0] || null)}
               />
             </label>
@@ -2332,6 +2463,11 @@ function AdminDashboard({ onLogout }) {
                 загрузить ZIP-архив с .dzi и папкой *_files.
               </p>
             )}
+
+            <p className="adminHint">
+              KFB зависит от серверного конвертера: если libvips/OpenSlide не
+              распознает файл, экспортируйте препарат в DZI, TIFF или SVS.
+            </p>
 
             <button disabled={isLoading} type="submit" className="adminPrimarySubmit">
               {isLoading
@@ -2377,6 +2513,7 @@ function AdminDashboard({ onLogout }) {
               <div key={slide.id} className="adminSlideItem">
                 <div>
                   <strong>{slide.title}</strong>
+                  <code className="adminSlideId">ID: {slide.id}</code>
                   <span>
                     {slide.lesson ? `${slide.lesson} · ` : ''}
                     {slide.system || 'Без раздела'} ·{' '}
@@ -3330,6 +3467,75 @@ function AdminDashboard({ onLogout }) {
           </section>
         )}
         </>
+        )}
+        {activeAdminTab === 'backups' && (
+          <section className="adminCard backupsCard">
+            <div className="adminCardHeader">
+              <div>
+                <h2>Резервные копии</h2>
+                <p>Снимки включают карточки препаратов, диагностики и результаты.</p>
+              </div>
+
+              <button
+                type="button"
+                className="adminPrimarySubmit"
+                disabled={isBackupBusy}
+                onClick={createBackup}
+              >
+                {isBackupBusy ? 'Обработка...' : 'Создать backup'}
+              </button>
+            </div>
+
+            {backupStatus && (
+              <div className="adminStatus">
+                <p>{backupStatus}</p>
+              </div>
+            )}
+
+            <div className="backupList">
+              {backups.map((backup) => (
+                <div key={backup.fileName} className="backupItem">
+                  <div>
+                    <strong>{backup.fileName}</strong>
+                    <span>
+                      {formatBackupDate(backup.createdAt)} · {formatFileSize(backup.sizeBytes)}
+                    </span>
+                    {backup.counts && (
+                      <small>
+                        Препараты: {backup.counts.slides || 0} · диагностики:{' '}
+                        {backup.counts.diagnostics || 0} · результаты:{' '}
+                        {backup.counts.diagnostic_results || 0}
+                      </small>
+                    )}
+                    {!backup.restorable && (
+                      <small>Доступно только скачивание старого backup-файла.</small>
+                    )}
+                  </div>
+
+                  <div className="backupActions">
+                    <a
+                      className="adminSecondaryButton"
+                      href={`/api/admin/backups/${encodeURIComponent(backup.fileName)}`}
+                    >
+                      Скачать
+                    </a>
+                    <button
+                      type="button"
+                      className="adminDangerButton"
+                      disabled={!backup.restorable || isBackupBusy}
+                      onClick={() => restoreBackup(backup)}
+                    >
+                      Восстановить
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {backups.length === 0 && (
+                <p className="adminHint">Резервные копии пока не созданы.</p>
+              )}
+            </div>
+          </section>
         )}
       </main>
     </div>
