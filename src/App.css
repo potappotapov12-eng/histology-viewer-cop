@@ -959,8 +959,9 @@ select {
 }
 
 .adminListToolbar {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(auto-fit, minmax(140px, 1fr));
+  align-items: stretch;
   gap: 10px;
   margin: 0 0 12px;
 }
@@ -969,7 +970,6 @@ select {
 .adminListToolbar select {
   min-height: 38px;
   min-width: 0;
-  flex: 1 1 auto;
   border: 1px solid #d1d5db;
   border-radius: 9px;
   background: #ffffff;
@@ -977,8 +977,14 @@ select {
   font: inherit;
 }
 
+.adminListToolbar button,
 .adminListToolbar span {
-  flex: 0 0 auto;
+  min-height: 38px;
+}
+
+.adminListToolbar span {
+  display: inline-flex;
+  align-items: center;
   color: #6b7280;
   font-size: 13px;
   font-weight: 700;

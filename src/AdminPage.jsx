@@ -1314,6 +1314,10 @@ function AdminDashboard({ onLogout }) {
   const [hasDiagnosticDraft, setHasDiagnosticDraft] = useState(false);
   const [draftStatus, setDraftStatus] = useState('');
   const [slideListSearch, setSlideListSearch] = useState('');
+  const [slideOrganFilter, setSlideOrganFilter] = useState('all');
+  const [slideSystemFilter, setSlideSystemFilter] = useState('all');
+  const [slideStatusFilter, setSlideStatusFilter] = useState('all');
+  const [slideSort, setSlideSort] = useState('title');
   const [diagnosticStatusFilter, setDiagnosticStatusFilter] = useState('all');
   const [resultSearch, setResultSearch] = useState('');
   const [resultReviewFilter, setResultReviewFilter] = useState('all');
@@ -1351,11 +1355,51 @@ function AdminDashboard({ onLogout }) {
     [diagnosticForm, slides]
   );
   const isPublishedWithWarnings = diagnosticForm.isPublished && publicationWarnings.length > 0;
+  const slideOrganOptions = useMemo(() => {
+    return Array.from(new Set(slides.map((slide) => slide.organ).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, 'ru')
+    );
+  }, [slides]);
+  const slideSystemOptions = useMemo(() => {
+    return Array.from(new Set(slides.map((slide) => slide.system).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, 'ru')
+    );
+  }, [slides]);
   const filteredAdminSlides = useMemo(() => {
     const query = slideListSearch.trim().toLowerCase();
-    if (!query) return slides;
-    return slides.filter((slide) => getSlideSearchText(slide).includes(query));
-  }, [slideListSearch, slides]);
+
+    return slides
+      .filter((slide) => {
+        const matchesSearch = !query || getSlideSearchText(slide).includes(query);
+        const matchesOrgan = slideOrganFilter === 'all' || slide.organ === slideOrganFilter;
+        const matchesSystem = slideSystemFilter === 'all' || slide.system === slideSystemFilter;
+        const matchesStatus =
+          slideStatusFilter === 'all' || slide.fileStatus?.status === slideStatusFilter;
+
+        return matchesSearch && matchesOrgan && matchesSystem && matchesStatus;
+      })
+      .sort((left, right) => {
+        if (slideSort === 'id') return left.id.localeCompare(right.id, 'ru');
+        if (slideSort === 'organ') {
+          return String(left.organ || '').localeCompare(String(right.organ || ''), 'ru');
+        }
+        if (slideSort === 'status') {
+          return String(left.fileStatus?.label || '').localeCompare(
+            String(right.fileStatus?.label || ''),
+            'ru'
+          );
+        }
+
+        return String(left.title || '').localeCompare(String(right.title || ''), 'ru');
+      });
+  }, [
+    slideListSearch,
+    slideOrganFilter,
+    slideSort,
+    slideStatusFilter,
+    slideSystemFilter,
+    slides,
+  ]);
   const normalizedSlideFormId = slugifyAdminId(form.id);
   const occupiedSlideId = !isEditing && normalizedSlideFormId
     ? slides.find((slide) => slide.id === normalizedSlideFormId)
@@ -2575,6 +2619,64 @@ function AdminDashboard({ onLogout }) {
               onChange={(event) => setSlideListSearch(event.target.value)}
               placeholder="Поиск по названию, занятию, органу, разделу..."
             />
+            <select
+              value={slideSystemFilter}
+              onChange={(event) => setSlideSystemFilter(event.target.value)}
+              aria-label="Фильтр по разделу"
+            >
+              <option value="all">Все разделы</option>
+              {slideSystemOptions.map((system) => (
+                <option key={system} value={system}>
+                  {system}
+                </option>
+              ))}
+            </select>
+            <select
+              value={slideOrganFilter}
+              onChange={(event) => setSlideOrganFilter(event.target.value)}
+              aria-label="Фильтр по органу"
+            >
+              <option value="all">Все органы</option>
+              {slideOrganOptions.map((organ) => (
+                <option key={organ} value={organ}>
+                  {organ}
+                </option>
+              ))}
+            </select>
+            <select
+              value={slideStatusFilter}
+              onChange={(event) => setSlideStatusFilter(event.target.value)}
+              aria-label="Фильтр по состоянию файла"
+            >
+              <option value="all">Все файлы</option>
+              <option value="ready">Готовые</option>
+              <option value="missing">Нет файла</option>
+              <option value="invalid">Поврежденные</option>
+              <option value="external">Внешние</option>
+            </select>
+            <select
+              value={slideSort}
+              onChange={(event) => setSlideSort(event.target.value)}
+              aria-label="Сортировка препаратов"
+            >
+              <option value="title">По названию</option>
+              <option value="id">По ID</option>
+              <option value="organ">По органу</option>
+              <option value="status">По статусу файла</option>
+            </select>
+            <button
+              type="button"
+              className="adminSecondaryButton"
+              onClick={() => {
+                setSlideListSearch('');
+                setSlideSystemFilter('all');
+                setSlideOrganFilter('all');
+                setSlideStatusFilter('all');
+                setSlideSort('title');
+              }}
+            >
+              Сбросить
+            </button>
             <span>
               Показано: {filteredAdminSlides.length} из {slides.length}
             </span>
