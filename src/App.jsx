@@ -5,6 +5,8 @@ const AdminPage = lazy(() => import('./AdminPage'));
 
 const ALL_ORGANS_OPTION = 'Все';
 const ALL_LESSONS_OPTION = 'Все занятия';
+const ALL_SYSTEMS_OPTION = 'Все разделы';
+const ALL_STAINS_OPTION = 'Все окраски';
 const NO_LESSON_OPTION = 'Без занятия';
 const DEFAULT_SYSTEM = 'Без раздела';
 
@@ -594,15 +596,21 @@ const SlideCard = memo(function SlideCard({ slide, isActive, onSelect }) {
 const Sidebar = memo(function Sidebar({
   organs,
   lessons,
+  systems,
+  stains,
   groupedSlides,
   selectedSlideId,
   filteredCount,
   searchQuery,
   selectedOrgan,
   selectedLesson,
+  selectedSystem,
+  selectedStain,
   onSearchChange,
   onOrganChange,
   onLessonChange,
+  onSystemChange,
+  onStainChange,
   onSelectSlide,
 }) {
   return (
@@ -620,10 +628,25 @@ const Sidebar = memo(function Sidebar({
         <input
           id="search"
           type="search"
-          placeholder="Например: миокард, H&E..."
+          placeholder="ID, диагноз, орган, окраска..."
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
         />
+      </div>
+
+      <div className="filterBlock">
+        <label htmlFor="systemFilter">Раздел</label>
+        <select
+          id="systemFilter"
+          value={selectedSystem}
+          onChange={(event) => onSystemChange(event.target.value)}
+        >
+          {systems.map((system) => (
+            <option key={system} value={system}>
+              {system}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="filterBlock">
@@ -651,6 +674,21 @@ const Sidebar = memo(function Sidebar({
           {organs.map((organ) => (
             <option key={organ} value={organ}>
               {organ}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="filterBlock">
+        <label htmlFor="stainFilter">Окраска</label>
+        <select
+          id="stainFilter"
+          value={selectedStain}
+          onChange={(event) => onStainChange(event.target.value)}
+        >
+          {stains.map((stain) => (
+            <option key={stain} value={stain}>
+              {stain}
             </option>
           ))}
         </select>
@@ -925,6 +963,8 @@ function ViewerApp() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrgan, setSelectedOrgan] = useState(ALL_ORGANS_OPTION);
   const [selectedLesson, setSelectedLesson] = useState(ALL_LESSONS_OPTION);
+  const [selectedSystem, setSelectedSystem] = useState(ALL_SYSTEMS_OPTION);
+  const [selectedStain, setSelectedStain] = useState(ALL_STAINS_OPTION);
   const [isInfoVisible, setIsInfoVisible] = useState(true);
   const [isSelfTestMode, setIsSelfTestMode] = useState(false);
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
@@ -989,6 +1029,26 @@ function ViewerApp() {
     return [ALL_LESSONS_OPTION, ...Array.from(uniqueLessons)];
   }, [slidesData]);
 
+  const systems = useMemo(() => {
+    const uniqueSystems = new Set();
+
+    slidesData.forEach((slide) => {
+      uniqueSystems.add(getSlideSystem(slide));
+    });
+
+    return [ALL_SYSTEMS_OPTION, ...Array.from(uniqueSystems).sort((a, b) => a.localeCompare(b, 'ru'))];
+  }, [slidesData]);
+
+  const stains = useMemo(() => {
+    const uniqueStains = new Set();
+
+    slidesData.forEach((slide) => {
+      uniqueStains.add(getSlideStain(slide));
+    });
+
+    return [ALL_STAINS_OPTION, ...Array.from(uniqueStains).sort((a, b) => a.localeCompare(b, 'ru'))];
+  }, [slidesData]);
+
   const filteredSlides = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -997,12 +1057,18 @@ function ViewerApp() {
         selectedOrgan === ALL_ORGANS_OPTION || slide.organ === selectedOrgan;
       const matchesLesson =
         selectedLesson === ALL_LESSONS_OPTION || getSlideLesson(slide) === selectedLesson;
+      const matchesSystem =
+        selectedSystem === ALL_SYSTEMS_OPTION || getSlideSystem(slide) === selectedSystem;
+      const matchesStain =
+        selectedStain === ALL_STAINS_OPTION || getSlideStain(slide) === selectedStain;
 
-      if (!matchesOrgan || !matchesLesson) return false;
+      if (!matchesOrgan || !matchesLesson || !matchesSystem || !matchesStain) return false;
       if (!query) return true;
 
       const searchableText = [
+        slide.id,
         slide.title,
+        slide.diagnosis,
         slide.lesson,
         slide.system,
         slide.organ,
@@ -1015,7 +1081,7 @@ function ViewerApp() {
 
       return searchableText.includes(query);
     });
-  }, [slidesData, searchQuery, selectedLesson, selectedOrgan]);
+  }, [slidesData, searchQuery, selectedLesson, selectedOrgan, selectedStain, selectedSystem]);
 
   const groupedSlides = useMemo(() => {
     return filteredSlides.reduce((groups, slide) => {
@@ -1210,15 +1276,21 @@ function ViewerApp() {
       <Sidebar
         organs={organs}
         lessons={lessons}
+        systems={systems}
+        stains={stains}
         groupedSlides={groupedSlides}
         selectedSlideId={selectedSlide.id}
         filteredCount={filteredSlides.length}
         searchQuery={searchQuery}
         selectedOrgan={selectedOrgan}
         selectedLesson={selectedLesson}
+        selectedSystem={selectedSystem}
+        selectedStain={selectedStain}
         onSearchChange={setSearchQuery}
         onOrganChange={setSelectedOrgan}
         onLessonChange={setSelectedLesson}
+        onSystemChange={setSelectedSystem}
+        onStainChange={setSelectedStain}
         onSelectSlide={setSelectedSlide}
       />
 
