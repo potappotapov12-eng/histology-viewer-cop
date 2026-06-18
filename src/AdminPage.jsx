@@ -990,6 +990,7 @@ function normalizeAdminQuestion(question) {
       isCorrect,
     };
   });
+  const correctOptionIds = options.filter((option) => option.isCorrect).map((option) => option.id);
 
   const fallbackHighlight = normalizeAdminMarker(question.region || question.highlight) || { type: 'rect', x: 35, y: 35, width: 20, height: 18 };
   const regions = Array.isArray(question.regions)
@@ -1003,6 +1004,7 @@ function normalizeAdminQuestion(question) {
       type,
       shuffle: question.answer?.shuffle !== false,
       options,
+      correctOptionIds,
       correctText: question.answer?.correctText || question.correctText || '',
       acceptedTexts: Array.isArray(question.answer?.acceptedTexts)
         ? question.answer.acceptedTexts
@@ -1086,6 +1088,7 @@ function getSlideStatusClass(status) {
 function getDiagnosticValidationWarnings(diagnostic, slides) {
   const slideById = new Map(slides.map((slide) => [slide.id, slide]));
   const warnings = [];
+  const hasNumber = (value) => String(value ?? '').trim() !== '' && Number.isFinite(Number(value));
 
   if (!diagnostic.title.trim()) {
     warnings.push('Укажите название диагностики.');
@@ -1097,6 +1100,8 @@ function getDiagnosticValidationWarnings(diagnostic, slides) {
 
   diagnostic.questions.map(normalizeAdminQuestion).forEach((question, index) => {
     const number = index + 1;
+    const filledOptions = question.answer.options.filter((option) => option.text.trim());
+    const correctOptionCount = question.answer.correctOptionIds.length;
 
     if (!question.prompt.trim()) {
       warnings.push(`Вопрос ${number}: не указан текст вопроса.`);
@@ -1106,11 +1111,51 @@ function getDiagnosticValidationWarnings(diagnostic, slides) {
       warnings.push(`Вопрос ${number}: выбранный препарат недоступен.`);
     }
 
-    if (['single', 'multiple', 'combined'].includes(question.type) && question.answer.options.filter((option) => option.text.trim()).length < 2) {
+    if (['single', 'multiple', 'combined'].includes(question.type) && filledOptions.length < 2) {
       warnings.push(`Вопрос ${number}: нужно минимум два варианта ответа.`);
     }
 
-    if (question.type === 'region' && question.regions.length === 0) {
+    if (['single', 'combined'].includes(question.type) && correctOptionCount !== 1) {
+      warnings.push(`Вопрос ${number}: выберите один правильный вариант ответа.`);
+    }
+
+    if (question.type === 'multiple' && correctOptionCount === 0) {
+      warnings.push(`Вопрос ${number}: выберите минимум один правильный вариант ответа.`);
+    }
+
+    if (['text', 'combined'].includes(question.type) && question.grading.mode !== 'manual' && !question.answer.correctText.trim()) {
+      warnings.push(`Вопрос ${number}: укажите правильный открытый ответ.`);
+    }
+
+    if (question.type === 'number' && question.grading.mode !== 'manual') {
+      const { correctValue, min, max } = question.answer.numeric;
+      const hasExact = hasNumber(correctValue);
+      const hasRange = hasNumber(min) && hasNumber(max);
+
+      if (!hasExact && !hasRange) {
+        warnings.push(`Вопрос ${number}: укажите числовой ответ или диапазон.`);
+      }
+
+      if (hasRange && Number(min) > Number(max)) {
+        warnings.push(`Вопрос ${number}: нижняя граница диапазона больше верхней.`);
+      }
+    }
+
+    if (
+      question.type === 'matching' &&
+      question.answer.pairs.filter((pair) => pair.left.trim() && pair.right.trim()).length < 2
+    ) {
+      warnings.push(`Вопрос ${number}: добавьте минимум две пары для сопоставления.`);
+    }
+
+    if (
+      question.type === 'ordering' &&
+      question.answer.items.filter((item) => item.text.trim()).length < 2
+    ) {
+      warnings.push(`Вопрос ${number}: добавьте минимум два элемента для упорядочивания.`);
+    }
+
+    if (question.type === 'region' && question.regions.filter((region) => region?.type !== 'arrow').length === 0) {
       warnings.push(`Вопрос ${number}: добавьте хотя бы одну правильную область.`);
     }
   });

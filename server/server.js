@@ -1290,6 +1290,9 @@ async function validateDiagnosticForPublication(diagnostic) {
 
   diagnostic.questions.forEach((question, index) => {
     const number = index + 1;
+    const correctOptionCount = Array.isArray(question.answer?.correctOptionIds)
+      ? question.answer.correctOptionIds.length
+      : 0;
 
     if (!question.prompt) {
       errors.push(`Вопрос ${number}: не указан текст вопроса`);
@@ -1303,10 +1306,45 @@ async function validateDiagnosticForPublication(diagnostic) {
       errors.push(`Вопрос ${number}: нужно минимум два варианта ответа`);
     }
 
+    if (['single', 'combined'].includes(question.type) && correctOptionCount !== 1) {
+      errors.push(`Вопрос ${number}: выберите один правильный вариант ответа`);
+    }
+
+    if (question.type === 'multiple' && correctOptionCount === 0) {
+      errors.push(`Вопрос ${number}: выберите минимум один правильный вариант ответа`);
+    }
+
+    if (['text', 'combined'].includes(question.type) && question.grading.mode !== 'manual' && !question.correctText) {
+      errors.push(`Вопрос ${number}: укажите правильный открытый ответ`);
+    }
+
+    if (question.type === 'number' && question.grading.mode !== 'manual') {
+      const hasExact = Number.isFinite(question.answer?.numeric?.correctValue);
+      const hasRange =
+        Number.isFinite(question.answer?.numeric?.min) &&
+        Number.isFinite(question.answer?.numeric?.max);
+
+      if (!hasExact && !hasRange) {
+        errors.push(`Вопрос ${number}: укажите числовой ответ или диапазон`);
+      }
+
+      if (hasRange && question.answer.numeric.min > question.answer.numeric.max) {
+        errors.push(`Вопрос ${number}: нижняя граница диапазона больше верхней`);
+      }
+    }
+
+    if (question.type === 'matching' && question.answer.pairs.length < 2) {
+      errors.push(`Вопрос ${number}: добавьте минимум две пары для сопоставления`);
+    }
+
+    if (question.type === 'ordering' && question.answer.items.length < 2) {
+      errors.push(`Вопрос ${number}: добавьте минимум два элемента для упорядочивания`);
+    }
+
     if (
       question.type === 'region' &&
       (!Array.isArray(question.regions) ||
-        question.regions.filter((region) => region?.type !== 'arrow').length === 0)
+        question.regions.filter((region) => region?.type !== 'arrow' && region?.enabled !== false).length === 0)
     ) {
       errors.push(`Вопрос ${number}: добавьте хотя бы одну правильную область`);
     }
