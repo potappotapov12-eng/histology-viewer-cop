@@ -324,6 +324,12 @@ select {
   transform: translateY(-1px);
 }
 
+.controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
 .viewerWrap {
   position: relative;
   width: 100%;
@@ -388,6 +394,21 @@ select {
   to {
     transform: rotate(360deg);
   }
+}
+
+.viewerTileWarning {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 8;
+  max-width: calc(100% - 28px);
+  padding: 8px 10px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 10px;
+  background: rgba(120, 53, 15, 0.9);
+  color: #fffbeb;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .viewerCanvas,

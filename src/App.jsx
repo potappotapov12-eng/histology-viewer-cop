@@ -347,6 +347,12 @@ function SlideViewer({
           clickToZoom: false,
           dblClickToZoom: true,
         },
+        gestureSettingsTouch: {
+          pinchToZoom: true,
+          flickEnabled: true,
+          clickToZoom: false,
+          dblClickToZoom: true,
+        },
       });
 
       viewerRef.current = viewer;
@@ -683,6 +689,7 @@ const Sidebar = memo(function Sidebar({
 function ViewerControls({
   isInfoVisible,
   isSelfTestMode,
+  isViewerReady,
   onZoomOut,
   onResetView,
   onZoomIn,
@@ -693,13 +700,31 @@ function ViewerControls({
   return (
     <div className="controls" aria-label="Управление просмотром препарата">
       <div className="controlGroup" aria-label="Масштаб">
-        <button type="button" onClick={onZoomOut} title="Уменьшить" aria-label="Уменьшить масштаб">
+        <button
+          type="button"
+          onClick={onZoomOut}
+          disabled={!isViewerReady}
+          title="Уменьшить"
+          aria-label="Уменьшить масштаб"
+        >
           −
         </button>
-        <button type="button" onClick={onResetView} title="Общий вид" aria-label="Вернуться к общему виду">
+        <button
+          type="button"
+          onClick={onResetView}
+          disabled={!isViewerReady}
+          title="Общий вид"
+          aria-label="Вернуться к общему виду"
+        >
           Общий вид
         </button>
-        <button type="button" onClick={onZoomIn} title="Увеличить" aria-label="Увеличить масштаб">
+        <button
+          type="button"
+          onClick={onZoomIn}
+          disabled={!isViewerReady}
+          title="Увеличить"
+          aria-label="Увеличить масштаб"
+        >
           +
         </button>
       </div>
@@ -726,6 +751,7 @@ function ViewerControls({
           type="button"
           className="iconControl"
           onClick={onToggleFullScreen}
+          disabled={!isViewerReady}
           title="Полноэкранный режим"
           aria-label="Открыть полноэкранный режим"
         >
@@ -906,6 +932,7 @@ function ViewerApp() {
   const [slidesError, setSlidesError] = useState('');
   const [viewerLoadError, setViewerLoadError] = useState('');
   const [viewerStatus, setViewerStatus] = useState('idle');
+  const [viewerTileStats, setViewerTileStats] = useState({ loaded: 0, failed: 0 });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1018,6 +1045,7 @@ function ViewerApp() {
     setActiveMarker(null);
     setViewerLoadError('');
     setViewerStatus('loading');
+    setViewerTileStats({ loaded: 0, failed: 0 });
   }, [selectedSlide?.id]);
 
   useEffect(() => {
@@ -1036,6 +1064,7 @@ function ViewerApp() {
     viewerRef.current?.destroy();
     setViewerLoadError('');
     setViewerStatus('loading');
+    setViewerTileStats({ loaded: 0, failed: 0 });
 
     import('openseadragon')
       .then(({ default: OpenSeadragon }) => {
@@ -1057,9 +1086,29 @@ function ViewerApp() {
             clickToZoom: false,
             dblClickToZoom: true,
           },
+          gestureSettingsTouch: {
+            pinchToZoom: true,
+            flickEnabled: true,
+            clickToZoom: false,
+            dblClickToZoom: true,
+          },
         });
         viewer.addHandler('open', () => {
           setViewerStatus('ready');
+        });
+        viewer.addHandler('tile-loaded', () => {
+          if (isCancelled) return;
+          setViewerTileStats((current) => ({
+            ...current,
+            loaded: current.loaded + 1,
+          }));
+        });
+        viewer.addHandler('tile-load-failed', () => {
+          if (isCancelled) return;
+          setViewerTileStats((current) => ({
+            ...current,
+            failed: current.failed + 1,
+          }));
         });
         viewer.addHandler('open-failed', () => {
           setViewerStatus('error');
@@ -1151,6 +1200,10 @@ function ViewerApp() {
   if (!selectedSlide) return <EmptyApp />;
 
   const isAnswerHidden = isSelfTestMode && !isAnswerVisible;
+  const isViewerReady = viewerStatus === 'ready';
+  const viewerLoadingLabel = viewerTileStats.loaded > 0
+    ? `Загрузка тайлов: ${viewerTileStats.loaded}${viewerTileStats.failed > 0 ? `, ошибок: ${viewerTileStats.failed}` : ''}`
+    : 'Загрузка препарата...';
 
   return (
     <div className={isInfoVisible ? 'app' : 'app infoHidden'}>
@@ -1187,6 +1240,7 @@ function ViewerApp() {
           <ViewerControls
             isInfoVisible={isInfoVisible}
             isSelfTestMode={isSelfTestMode}
+            isViewerReady={isViewerReady}
             onZoomOut={zoomOut}
             onResetView={resetView}
             onZoomIn={zoomIn}
@@ -1208,7 +1262,12 @@ function ViewerApp() {
               {viewerStatus === 'loading' && !viewerLoadError && (
                 <div className="viewerLoading" role="status" aria-live="polite">
                   <span />
-                  Загрузка препарата...
+                  {viewerLoadingLabel}
+                </div>
+              )}
+              {viewerStatus === 'ready' && viewerTileStats.failed > 0 && (
+                <div className="viewerTileWarning" role="status">
+                  Не загрузилось тайлов: {viewerTileStats.failed}
                 </div>
               )}
             </section>
