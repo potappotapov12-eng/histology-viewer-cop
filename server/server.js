@@ -2520,6 +2520,14 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
       score,
       total,
       percent,
+      answers: answers.map((answer) => ({
+        questionId: answer.questionId,
+        type: answer.type,
+        isCorrect: answer.isCorrect,
+        earnedPoints: answer.earnedPoints,
+        points: answer.points,
+        needsReview: answer.needsReview,
+      })),
     });
   } catch (error) {
     res.status(500).json({

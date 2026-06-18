@@ -85,6 +85,11 @@ function getQuestionAnswerStatus(question, answer) {
   return Boolean(answer.selectedOption);
 }
 
+function getResultAnswerStatus(answer) {
+  if (answer?.needsReview) return 'Требует проверки';
+  return answer?.isCorrect ? 'Верно' : 'Не верно';
+}
+
 function createHighlightElement() {
   const element = document.createElement('div');
   element.className = 'diagnosticHighlightOverlay';
@@ -1514,14 +1519,42 @@ function DiagnosticPage() {
   }
 
   if (result) {
+    const resultAnswerById = new Map(
+      (Array.isArray(result.answers) ? result.answers : []).map((answer) => [
+        answer.questionId,
+        answer,
+      ])
+    );
+
     return (
       <div className="diagnosticShell">
-        <div className="diagnosticMessage">
+        <div className="diagnosticMessage diagnosticResultCard">
           <img src="/logo-ugmu.png" alt="УГМУ" />
           <h1>Ответы отправлены</h1>
           <p>
             Результат: <strong>{result.score} из {result.total}</strong> ({result.percent}%).
           </p>
+          <div className="diagnosticResultList">
+            {diagnostic.questions.map((question, index) => {
+              const answer = resultAnswerById.get(question.id);
+
+              return (
+                <div
+                  key={question.id}
+                  className={answer?.isCorrect ? 'diagnosticResultItem correct' : 'diagnosticResultItem'}
+                >
+                  <div>
+                    <strong>Вопрос {index + 1}</strong>
+                    <span>{question.prompt}</span>
+                  </div>
+                  <em>{getResultAnswerStatus(answer)}</em>
+                  <small>
+                    {Number(answer?.earnedPoints || 0)} / {Number(answer?.points || 0)}
+                  </small>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );

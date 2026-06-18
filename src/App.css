@@ -2113,6 +2113,60 @@ a:focus-visible {
   line-height: 1.55;
 }
 
+.diagnosticResultCard {
+  width: min(760px, calc(100% - 32px));
+}
+
+.diagnosticResultList {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  text-align: left;
+}
+
+.diagnosticResultItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px 64px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.diagnosticResultItem.correct {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.diagnosticResultItem strong,
+.diagnosticResultItem span {
+  display: block;
+}
+
+.diagnosticResultItem span {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.diagnosticResultItem em {
+  color: #374151;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+}
+
+.diagnosticResultItem small {
+  color: #111827;
+  font-weight: 800;
+  text-align: right;
+}
+
 .diagnosticLogin label {
   display: flex;
   flex-direction: column;
@@ -3284,6 +3338,15 @@ a:focus-visible {
 
   .diagnosticLayout {
     padding: 12px;
+  }
+
+  .diagnosticResultItem {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnosticResultItem em,
+  .diagnosticResultItem small {
+    text-align: left;
   }
 
   .regionReviewHeader {
