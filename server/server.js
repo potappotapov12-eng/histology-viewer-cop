@@ -43,6 +43,7 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   'postgres://postgres:postgres@127.0.0.1:5432/histology_viewer';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_SESSION_SECRET_CONFIGURED = Boolean(process.env.ADMIN_SESSION_SECRET);
 const ADMIN_SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
   crypto.randomBytes(32).toString('hex');
@@ -540,6 +541,8 @@ async function getHealthReport() {
     node: process.version,
     adminAuth: {
       configured: Boolean(ADMIN_PASSWORD),
+      sessionSecretConfigured: ADMIN_SESSION_SECRET_CONFIGURED,
+      notes: [],
     },
     database: {
       ok: false,
@@ -578,6 +581,12 @@ async function getHealthReport() {
       notes: [],
     },
   };
+
+  if (ADMIN_PASSWORD && !ADMIN_SESSION_SECRET_CONFIGURED) {
+    report.adminAuth.notes.push(
+      'ADMIN_SESSION_SECRET не задан. Cookie-сессии администратора будут сбрасываться при каждом перезапуске backend.'
+    );
+  }
 
   const [rawSlidesDir, publicSlidesDir, uploadLogDir, vips] = await Promise.all([
     getDirectoryStatus(RAW_SLIDES_DIR),
