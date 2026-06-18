@@ -2180,6 +2180,14 @@ a:focus-visible {
   color: #6b7280;
 }
 
+.diagnosticDraftStatus {
+  display: inline-flex;
+  margin-left: 8px;
+  color: #047857 !important;
+  font-size: 13px !important;
+  font-weight: 700;
+}
+
 .diagnosticTimer {
   min-width: 94px;
   height: 46px;

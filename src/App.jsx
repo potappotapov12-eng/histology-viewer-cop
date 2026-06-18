@@ -64,6 +64,15 @@ function formatTimer(seconds) {
   return `${minutes}:${String(restSeconds).padStart(2, '0')}`;
 }
 
+function getDiagnosticDraftKey(diagnosticId, student) {
+  const name = String(student?.studentName || '').trim().toLowerCase();
+  const group = String(student?.group || '').trim().toLowerCase();
+
+  if (!diagnosticId || !name || !group) return '';
+
+  return `diagnostic-draft:${diagnosticId}:${name}:${group}`;
+}
+
 function getQuestionAnswerStatus(question, answer) {
   if (!answer) return false;
   if (question.type === 'text') return Boolean(answer.textAnswer?.trim());
@@ -1240,6 +1249,11 @@ function DiagnosticPage() {
   const [timeLeft, setTimeLeft] = useState(null);
   const [loginError, setLoginError] = useState('');
   const [isCheckingAttempt, setIsCheckingAttempt] = useState(false);
+  const [draftStatus, setDraftStatus] = useState('');
+  const diagnosticDraftKey = useMemo(
+    () => getDiagnosticDraftKey(diagnosticId, student),
+    [diagnosticId, student]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1268,6 +1282,7 @@ function DiagnosticPage() {
         setActiveIndex(0);
         setResult(null);
         setSubmitError('');
+        setDraftStatus('');
         if (isPreviewMode) {
           setStudent({
             studentName: 'Предпросмотр',
@@ -1325,7 +1340,43 @@ function DiagnosticPage() {
       }
 
       const durationSeconds = Number(diagnostic.durationMinutes || 0) * 60;
-      setTimeLeft(durationSeconds > 0 ? durationSeconds : null);
+      let restoredDraft = null;
+
+      if (!isPreviewMode && diagnosticDraftKey) {
+        try {
+          const rawDraft = window.localStorage.getItem(diagnosticDraftKey);
+          const parsedDraft = rawDraft ? JSON.parse(rawDraft) : null;
+
+          if (parsedDraft?.diagnosticId === diagnostic.id) {
+            restoredDraft = parsedDraft;
+          }
+        } catch {
+          window.localStorage.removeItem(diagnosticDraftKey);
+        }
+      }
+
+      setAnswers(restoredDraft?.answers || {});
+      setActiveIndex(
+        Math.max(
+          0,
+          Math.min(
+            diagnostic.questions.length - 1,
+            Number(restoredDraft?.activeIndex || 0)
+          )
+        )
+      );
+      setTimeLeft(
+        restoredDraft && durationSeconds > 0
+          ? Math.max(
+              0,
+              Number(restoredDraft.timeLeft ?? durationSeconds) -
+                Math.max(0, Math.floor((Date.now() - new Date(restoredDraft.savedAt || Date.now()).getTime()) / 1000))
+            )
+          : durationSeconds > 0
+            ? durationSeconds
+            : null
+      );
+      setDraftStatus(restoredDraft ? 'Черновик ответов восстановлен' : '');
       setIsStarted(true);
     } catch (error) {
       setLoginError(error.message);
@@ -1362,12 +1413,64 @@ function DiagnosticPage() {
       }
 
       setResult(data);
+      if (diagnosticDraftKey) {
+        window.localStorage.removeItem(diagnosticDraftKey);
+      }
     } catch (error) {
       setSubmitError(error.message);
     } finally {
       setIsSubmitting(false);
     }
-  }, [answers, diagnostic, isPreviewMode, isSubmitting, result, student]);
+  }, [answers, diagnostic, diagnosticDraftKey, isPreviewMode, isSubmitting, result, student]);
+
+  useEffect(() => {
+    if (!isStarted || result || isPreviewMode || !diagnostic || !diagnosticDraftKey) {
+      return;
+    }
+
+    const draft = {
+      diagnosticId: diagnostic.id,
+      student,
+      answers,
+      activeIndex,
+      timeLeft,
+      savedAt: new Date().toISOString(),
+    };
+
+    try {
+      window.localStorage.setItem(diagnosticDraftKey, JSON.stringify(draft));
+      if (Object.keys(answers).length > 0) {
+        setDraftStatus('Ответы сохранены в браузере');
+      }
+    } catch {
+      setDraftStatus('Не удалось сохранить ответы в браузере');
+    }
+  }, [
+    activeIndex,
+    answers,
+    diagnostic,
+    diagnosticDraftKey,
+    isPreviewMode,
+    isStarted,
+    result,
+    student,
+    timeLeft,
+  ]);
+
+  useEffect(() => {
+    if (!isStarted || result || isSubmitting || isPreviewMode) return undefined;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isPreviewMode, isStarted, isSubmitting, result]);
 
   useEffect(() => {
     if (!isStarted || result || isSubmitting || timeLeft === null) return undefined;
@@ -1485,6 +1588,9 @@ function DiagnosticPage() {
           <p>
             {isPreviewMode ? 'Предпросмотр без сохранения ответов. ' : ''}
             Вопрос {activeIndex + 1} из {diagnostic.questions.length}. Ответов: {answeredCount}.
+            {draftStatus && !isPreviewMode ? (
+              <span className="diagnosticDraftStatus"> {draftStatus}</span>
+            ) : null}
           </p>
         </div>
 
