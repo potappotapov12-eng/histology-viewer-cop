@@ -2026,6 +2026,31 @@ a:focus-visible {
   margin: 0;
 }
 
+.slideImportCard {
+  grid-column: 1 / -1;
+}
+
+.importFileButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.importFileButton input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.importFileButton:has(input:disabled) {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .adminProgress {
   width: 100%;
   height: 10px;

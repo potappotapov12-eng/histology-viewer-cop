@@ -2647,6 +2647,81 @@ app.get('/api/admin/jobs/:id', (req, res) => {
   res.json(job);
 });
 
+app.post('/api/admin/slides/import', async (req, res) => {
+  try {
+    const rawSlides = req.body?.slides;
+
+    if (!Array.isArray(rawSlides) || rawSlides.length === 0) {
+      return res.status(400).json({
+        error: 'Передайте непустой массив slides с карточками препаратов',
+      });
+    }
+
+    if (rawSlides.length > 500) {
+      return res.status(400).json({
+        error: 'За одну операцию можно импортировать не более 500 карточек',
+      });
+    }
+
+    const slides = await readSlides();
+    const occupiedIds = new Set(slides.map((slide) => slide.id));
+    const created = [];
+    const skipped = [];
+
+    rawSlides.forEach((rawSlide, index) => {
+      const row = index + 1;
+
+      try {
+        if (!rawSlide || typeof rawSlide !== 'object' || Array.isArray(rawSlide)) {
+          throw new Error('ожидается объект карточки');
+        }
+
+        const id = slugify(rawSlide.id || rawSlide.title);
+        if (!id) throw new Error('не удалось создать ID');
+
+        if (occupiedIds.has(id)) {
+          throw new Error(`ID "${id}" уже занят`);
+        }
+
+        const slide = normalizeSlideData({
+          id,
+          title: rawSlide.title,
+          lesson: rawSlide.lesson,
+          system: rawSlide.system,
+          organ: rawSlide.organ,
+          stain: rawSlide.stain,
+          source: rawSlide.source,
+          description: rawSlide.description,
+          diagnosticSigns: rawSlide.diagnosticSigns,
+          selfCheckQuestions: rawSlide.selfCheckQuestions,
+        }, { strict: true });
+
+        created.push(slide);
+        occupiedIds.add(id);
+      } catch (error) {
+        skipped.push({
+          row,
+          id: String(rawSlide?.id || rawSlide?.title || '').trim(),
+          error: error.message,
+        });
+      }
+    });
+
+    if (created.length > 0) {
+      await writeSlides([...slides, ...created]);
+    }
+
+    res.status(created.length > 0 ? 201 : 400).json({
+      ok: created.length > 0,
+      created: created.map((slide) => ({ id: slide.id, title: slide.title })),
+      skipped,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
   const job = createJob('Файл получен. Подготовка к обработке...');
 

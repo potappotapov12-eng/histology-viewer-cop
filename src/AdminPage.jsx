@@ -36,6 +36,83 @@ const DIAGNOSTIC_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
   hourCycle: 'h23',
 });
 
+const IMPORT_FIELD_ALIASES = {
+  id: 'id',
+  идентификатор: 'id',
+  title: 'title',
+  название: 'title',
+  lesson: 'lesson',
+  занятие: 'lesson',
+  system: 'system',
+  раздел: 'system',
+  organ: 'organ',
+  орган: 'organ',
+  stain: 'stain',
+  окраска: 'stain',
+  source: 'source',
+  'dzi-адрес': 'source',
+  description: 'description',
+  описание: 'description',
+  diagnosticsigns: 'diagnosticSigns',
+  'диагностические признаки': 'diagnosticSigns',
+  selfcheckquestions: 'selfCheckQuestions',
+  'вопросы для самопроверки': 'selfCheckQuestions',
+};
+
+function parseCsvRows(content) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index];
+    if (character === '"') {
+      if (quoted && content[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (!quoted && (character === ';' || character === ',')) {
+      row.push(cell.trim());
+      cell = '';
+    } else if (!quoted && (character === '\n' || character === '\r')) {
+      if (character === '\r' && content[index + 1] === '\n') index += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += character;
+    }
+  }
+
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  if (rows.length < 2) throw new Error('CSV должен содержать заголовок и хотя бы одну строку');
+
+  const headers = rows[0].map((header) => IMPORT_FIELD_ALIASES[header.trim().toLowerCase()] || '');
+  if (!headers.includes('title') || !headers.includes('source')) {
+    throw new Error('CSV должен содержать столбцы title/Название и source/DZI-адрес');
+  }
+
+  return rows.slice(1).map((cells) => Object.fromEntries(
+    headers.map((header, index) => [header, header ? cells[index] || '' : undefined]).filter(([header]) => header)
+  ));
+}
+
+function normalizeImportedSlides(content, fileName) {
+  if (fileName.toLowerCase().endsWith('.json')) {
+    const parsed = JSON.parse(content);
+    const slides = Array.isArray(parsed) ? parsed : parsed?.slides;
+    if (!Array.isArray(slides)) throw new Error('JSON должен быть массивом карточек или объектом с полем slides');
+    return slides;
+  }
+
+  return parseCsvRows(content);
+}
+
 function createDiagnosticQuestion(slideId = '') {
   const highlight = {
     x: 35,
@@ -1370,6 +1447,8 @@ function AdminDashboard({ onLogout }) {
   const [backupStatus, setBackupStatus] = useState('');
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [previewSlideId, setPreviewSlideId] = useState('');
+  const [importStatus, setImportStatus] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
 
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
@@ -1794,6 +1873,44 @@ function AdminDashboard({ onLogout }) {
     } finally {
       setIsLoading(false);
       setJobProgress(null);
+    }
+  };
+
+  const importSlideCards = async (event) => {
+    const importFile = event.target.files?.[0];
+    event.target.value = '';
+    if (!importFile) return;
+
+    setIsImporting(true);
+    setImportStatus(`Чтение файла ${importFile.name}...`);
+
+    try {
+      const slidesToImport = normalizeImportedSlides(
+        await importFile.text(),
+        importFile.name
+      );
+      const response = await fetch('/api/admin/slides/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slides: slidesToImport }),
+      });
+      const result = await response.json();
+
+      if (!response.ok && !result.created?.length) {
+        throw new Error(result.error || 'Не удалось импортировать карточки');
+      }
+
+      const createdCount = result.created?.length || 0;
+      const skipped = result.skipped || [];
+      const skippedText = skipped.length
+        ? ` Пропущено: ${skipped.length}. ${skipped.slice(0, 3).map((item) => `Строка ${item.row}: ${item.error}`).join(' ')}`
+        : '';
+      setImportStatus(`Добавлено карточек: ${createdCount}.${skippedText}`);
+      await loadSlides();
+    } catch (error) {
+      setImportStatus(`Ошибка импорта: ${error.message}`);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -2381,6 +2498,27 @@ function AdminDashboard({ onLogout }) {
       <main className="adminLayout">
         {activeAdminTab === 'slides' && (
         <>
+        <section className="adminCard slideImportCard">
+          <div className="adminCardHeader">
+            <div>
+              <h2>Импорт карточек</h2>
+              <p>Загрузите CSV или JSON с готовыми DZI-адресами. Файлы препаратов добавляются отдельно.</p>
+            </div>
+            <label className="adminSecondaryButton importFileButton">
+              {isImporting ? 'Импорт...' : 'Выбрать CSV или JSON'}
+              <input
+                type="file"
+                accept=".csv,.json,application/json,text/csv"
+                disabled={isImporting}
+                onChange={importSlideCards}
+              />
+            </label>
+          </div>
+          <p className="adminHint">
+            Обязательные поля: <code>title</code>, <code>lesson</code>, <code>system</code>, <code>organ</code>, <code>stain</code>, <code>source</code>. Поле <code>id</code> необязательно; занятые ID пропускаются.
+          </p>
+          {importStatus && <p className="adminStatus">{importStatus}</p>}
+        </section>
         <section className="adminCard slideFormCard">
           <div className="adminCardHeader">
             <div>
