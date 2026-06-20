@@ -43,6 +43,7 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   'postgres://postgres:postgres@127.0.0.1:5432/histology_viewer';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const TEACHER_PASSWORD = process.env.TEACHER_PASSWORD || '';
 const ADMIN_SESSION_SECRET_CONFIGURED = Boolean(process.env.ADMIN_SESSION_SECRET);
 const ADMIN_SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
@@ -252,34 +253,34 @@ function parseCookies(header = '') {
     }, {});
 }
 
-function signAdminSession(expiresAt) {
+function signAdminSession(role, expiresAt) {
   return crypto
     .createHmac('sha256', ADMIN_SESSION_SECRET)
-    .update(String(expiresAt))
+    .update(`${role}.${expiresAt}`)
     .digest('hex');
 }
 
-function createAdminSessionToken() {
+function createAdminSessionToken(role) {
   const expiresAt = Date.now() + ADMIN_SESSION_TTL_MS;
-  return `${expiresAt}.${signAdminSession(expiresAt)}`;
+  return `${role}.${expiresAt}.${signAdminSession(role, expiresAt)}`;
 }
 
-function isAdminSessionTokenValid(token) {
-  const [expiresAtRaw, signature] = String(token || '').split('.');
+function getSessionRole(token) {
+  const [role, expiresAtRaw, signature] = String(token || '').split('.');
   const expiresAt = Number(expiresAtRaw);
 
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
-    return false;
+  if (!['admin', 'teacher'].includes(role) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
+    return null;
   }
 
-  const expected = signAdminSession(expiresAt);
+  const expected = signAdminSession(role, expiresAt);
   const expectedBuffer = Buffer.from(expected);
   const signatureBuffer = Buffer.from(signature);
 
   return (
     expectedBuffer.length === signatureBuffer.length &&
     crypto.timingSafeEqual(expectedBuffer, signatureBuffer)
-  );
+  ) ? role : null;
 }
 
 function getAdminCookieOptions({ expires = null } = {}) {
@@ -302,10 +303,10 @@ function getAdminCookieOptions({ expires = null } = {}) {
   return options.join('; ');
 }
 
-function setAdminSessionCookie(res) {
+function setAdminSessionCookie(res, role) {
   res.setHeader(
     'Set-Cookie',
-    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(createAdminSessionToken())}; ${getAdminCookieOptions()}`
+    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(createAdminSessionToken(role))}; ${getAdminCookieOptions()}`
   );
 }
 
@@ -318,22 +319,30 @@ function clearAdminSessionCookie(res) {
 
 function isAdminAuthenticated(req) {
   const cookies = parseCookies(req.headers.cookie);
-  return isAdminSessionTokenValid(cookies[ADMIN_SESSION_COOKIE]);
+  return getSessionRole(cookies[ADMIN_SESSION_COOKIE]);
 }
 
 function requireAdmin(req, res, next) {
-  if (!ADMIN_PASSWORD) {
+  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD) {
     return res.status(503).json({
       error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
     });
   }
 
-  if (!isAdminAuthenticated(req)) {
+  const role = isAdminAuthenticated(req);
+  if (!role) {
     return res.status(401).json({
       error: 'Требуется вход администратора',
     });
   }
 
+  req.adminRole = role;
+
+  return next();
+}
+
+function requireAdministrator(req, res, next) {
+  if (req.adminRole !== 'admin') return res.status(403).json({ error: 'Эта операция доступна только администратору' });
   return next();
 }
 
@@ -341,6 +350,18 @@ function isAdminPasswordValid(value) {
   if (!ADMIN_PASSWORD) return false;
 
   const expectedBuffer = Buffer.from(ADMIN_PASSWORD);
+  const actualBuffer = Buffer.from(String(value || ''));
+
+  return (
+    expectedBuffer.length === actualBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, actualBuffer)
+  );
+}
+
+function isTeacherPasswordValid(value) {
+  if (!TEACHER_PASSWORD) return false;
+
+  const expectedBuffer = Buffer.from(TEACHER_PASSWORD);
   const actualBuffer = Buffer.from(String(value || ''));
 
   return (
@@ -2065,30 +2086,39 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.get('/api/admin/session', (req, res) => {
+  const role = isAdminAuthenticated(req);
   res.json({
     ok: true,
-    configured: Boolean(ADMIN_PASSWORD),
-    authenticated: Boolean(ADMIN_PASSWORD && isAdminAuthenticated(req)),
+    configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD),
+    authenticated: Boolean(role),
+    role,
   });
 });
 
 app.post('/api/admin/login', (req, res) => {
-  if (!ADMIN_PASSWORD) {
+  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD) {
     return res.status(503).json({
       error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
     });
   }
 
-  if (!isAdminPasswordValid(req.body?.password)) {
+  const role = isAdminPasswordValid(req.body?.password)
+    ? 'admin'
+    : isTeacherPasswordValid(req.body?.password)
+      ? 'teacher'
+      : null;
+
+  if (!role) {
     clearAdminSessionCookie(res);
     return res.status(401).json({
       error: 'Неверный пароль',
     });
   }
 
-  setAdminSessionCookie(res);
+  setAdminSessionCookie(res, role);
   return res.json({
     ok: true,
+    role,
   });
 });
 
@@ -2409,7 +2439,7 @@ app.get('/api/admin/backups/:fileName', async (req, res) => {
   }
 });
 
-app.post('/api/admin/backups/:fileName/restore', async (req, res) => {
+app.post('/api/admin/backups/:fileName/restore', requireAdministrator, async (req, res) => {
   try {
     const backup = await readDataSnapshotBackup(req.params.fileName);
 
