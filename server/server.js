@@ -20,6 +20,7 @@ import {
 } from './diagnosticLogic.js';
 
 const execFileAsync = promisify(execFile);
+const scryptAsync = promisify(crypto.scrypt);
 const { Pool } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -402,6 +403,52 @@ function isPasswordValid(expected, actual) {
   return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
+function normalizeAccountLogin(value) {
+  const login = String(value || '').trim().toLowerCase();
+  if (!/^[a-z0-9_-]{3,64}$/.test(login)) {
+    throw new Error('Логин должен содержать 3-64 латинских букв, цифр, _ или -');
+  }
+  return login;
+}
+
+function requireAccountPassword(value) {
+  const password = String(value || '');
+  if (password.length < 8) throw new Error('Пароль должен содержать не менее 8 символов');
+  return password;
+}
+
+async function hashAccountPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = await scryptAsync(password, salt, 64);
+  return `${salt}:${Buffer.from(hash).toString('hex')}`;
+}
+
+async function isStoredPasswordValid(passwordHash, password) {
+  const [salt, savedHash] = String(passwordHash || '').split(':');
+  if (!salt || !savedHash) return false;
+  const actualHash = Buffer.from(await scryptAsync(String(password || ''), salt, 64)).toString('hex');
+  return isPasswordValid(savedHash, actualHash);
+}
+
+async function listTeacherAccounts() {
+  const { rows } = await pool.query(
+    'SELECT login, created_at, updated_at FROM teacher_accounts ORDER BY login'
+  );
+  return rows.map((row) => ({
+    login: row.login,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+async function findStoredTeacherAccount(login) {
+  const { rows } = await pool.query(
+    'SELECT login, password_hash FROM teacher_accounts WHERE login = $1',
+    [login]
+  );
+  return rows[0] || null;
+}
+
 await fs.mkdir(DATA_DIR, { recursive: true });
 await fs.mkdir(BACKUP_DIR, { recursive: true });
 await fs.mkdir(UPLOAD_LOG_DIR, { recursive: true });
@@ -690,6 +737,13 @@ async function initDatabase() {
         ON diagnostic_results (diagnostic_id, lower(student_name), lower(group_name));
       CREATE INDEX IF NOT EXISTS diagnostics_data_gin_idx
         ON diagnostics USING gin (data);
+
+      CREATE TABLE IF NOT EXISTS teacher_accounts (
+        login text PRIMARY KEY,
+        password_hash text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
       CREATE INDEX IF NOT EXISTS slides_data_gin_idx
         ON slides USING gin (data);
     `);
@@ -2117,19 +2171,20 @@ app.get('/api/health', async (req, res) => {
   res.status(report.ok ? 200 : 503).json(report);
 });
 
-app.get('/api/admin/session', (req, res) => {
+app.get('/api/admin/session', async (req, res) => {
   const session = isAdminAuthenticated(req);
+  const accounts = await listTeacherAccounts();
   res.json({
     ok: true,
-    configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD || TEACHER_ACCOUNTS.length),
+    configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD || TEACHER_ACCOUNTS.length || accounts.length),
     authenticated: Boolean(session),
     role: session?.role || '',
     login: session?.login || '',
   });
 });
 
-app.post('/api/admin/login', (req, res) => {
-  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD && TEACHER_ACCOUNTS.length === 0) {
+app.post('/api/admin/login', async (req, res) => {
+  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD && TEACHER_ACCOUNTS.length === 0 && !(await listTeacherAccounts()).length) {
     return res.status(503).json({
       error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
     });
@@ -2137,10 +2192,13 @@ app.post('/api/admin/login', (req, res) => {
 
   const login = String(req.body?.login || '').trim().toLowerCase();
   const teacher = TEACHER_ACCOUNTS.find((account) => account.login === login);
+  const storedTeacher = await findStoredTeacherAccount(login);
   const session = login === ADMIN_LOGIN.toLowerCase() && isAdminPasswordValid(req.body?.password)
     ? { role: 'admin', login }
     : teacher && isPasswordValid(teacher.password, req.body?.password)
       ? { role: 'teacher', login: teacher.login }
+      : storedTeacher && await isStoredPasswordValid(storedTeacher.password_hash, req.body?.password)
+        ? { role: 'teacher', login: storedTeacher.login }
       : login === 'teacher' && isTeacherPasswordValid(req.body?.password)
         ? { role: 'teacher', login }
         : null;
@@ -2168,6 +2226,56 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 app.use('/api/admin', requireAdmin);
+
+app.get('/api/admin/teachers', requireAdministrator, async (req, res) => {
+  res.json(await listTeacherAccounts());
+});
+
+app.post('/api/admin/teachers', requireAdministrator, async (req, res) => {
+  try {
+    const login = normalizeAccountLogin(req.body?.login);
+    const password = requireAccountPassword(req.body?.password);
+    if (login === ADMIN_LOGIN || login === 'teacher' || TEACHER_ACCOUNTS.some((account) => account.login === login)) {
+      return res.status(400).json({ error: 'Этот логин зарезервирован конфигурацией сервера' });
+    }
+
+    await pool.query(
+      'INSERT INTO teacher_accounts (login, password_hash) VALUES ($1, $2)',
+      [login, await hashAccountPassword(password)]
+    );
+    res.status(201).json({ ok: true, login });
+  } catch (error) {
+    res.status(error.code === '23505' ? 409 : 400).json({
+      error: error.code === '23505' ? 'Такой логин уже существует' : error.message,
+    });
+  }
+});
+
+app.put('/api/admin/teachers/:login/password', requireAdministrator, async (req, res) => {
+  try {
+    const login = normalizeAccountLogin(req.params.login);
+    const password = requireAccountPassword(req.body?.password);
+    const result = await pool.query(
+      'UPDATE teacher_accounts SET password_hash = $2, updated_at = now() WHERE login = $1',
+      [login, await hashAccountPassword(password)]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Преподаватель не найден' });
+    res.json({ ok: true, login });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete('/api/admin/teachers/:login', requireAdministrator, async (req, res) => {
+  try {
+    const login = normalizeAccountLogin(req.params.login);
+    const result = await pool.query('DELETE FROM teacher_accounts WHERE login = $1', [login]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Преподаватель не найден' });
+    res.json({ ok: true, login });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
 
 app.get('/api/admin/slides', async (req, res) => {
   const slides = await readSlides();

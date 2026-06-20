@@ -1459,6 +1459,10 @@ function AdminDashboard({ onLogout, role }) {
   const [previewSlideId, setPreviewSlideId] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [teachers, setTeachers] = useState([]);
+  const [teacherLogin, setTeacherLogin] = useState('');
+  const [teacherPassword, setTeacherPassword] = useState('');
+  const [teachersStatus, setTeachersStatus] = useState('');
 
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
@@ -1609,6 +1613,13 @@ function AdminDashboard({ onLogout, role }) {
     setBackups(Array.isArray(data) ? data : []);
   };
 
+  const loadTeachers = async () => {
+    const response = await fetch('/api/admin/teachers');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Не удалось загрузить преподавателей');
+    setTeachers(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
     loadSlides().catch((error) => {
       setStatus(`Ошибка: ${error.message}`);
@@ -1620,6 +1631,7 @@ function AdminDashboard({ onLogout, role }) {
       loadBackups().catch((error) => {
         setBackupStatus(`Ошибка: ${error.message}`);
       });
+      loadTeachers().catch((error) => setTeachersStatus(`Ошибка: ${error.message}`));
     }
   }, [role]);
 
@@ -1706,6 +1718,48 @@ function AdminDashboard({ onLogout, role }) {
         }
       }, 1500);
     });
+  };
+
+  const createTeacher = async (event) => {
+    event.preventDefault();
+    setTeachersStatus('Создание учётной записи...');
+    try {
+      const response = await fetch('/api/admin/teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: teacherLogin, password: teacherPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Не удалось создать преподавателя');
+      setTeacherLogin('');
+      setTeacherPassword('');
+      setTeachersStatus(`Учётная запись ${data.login} создана`);
+      await loadTeachers();
+    } catch (error) {
+      setTeachersStatus(`Ошибка: ${error.message}`);
+    }
+  };
+
+  const changeTeacherPassword = async (login) => {
+    const password = window.prompt(`Новый пароль для ${login}:`);
+    if (!password) return;
+    const response = await fetch(`/api/admin/teachers/${encodeURIComponent(login)}/password`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+    });
+    const data = await response.json();
+    setTeachersStatus(response.ok ? `Пароль ${login} изменён` : `Ошибка: ${data.error || 'не удалось изменить пароль'}`);
+  };
+
+  const deleteTeacher = async (login) => {
+    if (!window.confirm(`Удалить учётную запись ${login}?`)) return;
+    const response = await fetch(`/api/admin/teachers/${encodeURIComponent(login)}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) {
+      setTeachersStatus(`Ошибка: ${data.error || 'не удалось удалить преподавателя'}`);
+      return;
+    }
+    setTeachersStatus(`Учётная запись ${login} удалена`);
+    await loadTeachers();
   };
 
   const updateField = (field, value) => {
@@ -2504,6 +2558,13 @@ function AdminDashboard({ onLogout, role }) {
           onClick={() => setActiveAdminTab('backups')}
         >
           Backups
+        </button>}
+        {role === 'admin' && <button
+          type="button"
+          className={activeAdminTab === 'teachers' ? 'active' : ''}
+          onClick={() => setActiveAdminTab('teachers')}
+        >
+          Преподаватели
         </button>}
       </nav>
 
@@ -3859,6 +3920,44 @@ function AdminDashboard({ onLogout, role }) {
         )}
         </>
         )}
+        {role === 'admin' && activeAdminTab === 'teachers' && (
+          <section className="adminCard teachersCard">
+            <div className="adminCardHeader">
+              <div>
+                <h2>Учётные записи преподавателей</h2>
+                <p>Пароли хранятся на сервере в виде хешей и не отображаются.</p>
+              </div>
+            </div>
+            <form className="adminForm" onSubmit={createTeacher}>
+              <label>
+                Логин
+                <input value={teacherLogin} onChange={(event) => setTeacherLogin(event.target.value)} placeholder="ivanov" required />
+              </label>
+              <label>
+                Пароль
+                <input type="password" value={teacherPassword} onChange={(event) => setTeacherPassword(event.target.value)} minLength="8" required />
+              </label>
+              <button type="submit" className="adminPrimarySubmit">Создать преподавателя</button>
+            </form>
+            {teachersStatus && <p className="adminStatus">{teachersStatus}</p>}
+            <div className="adminSlideList">
+              {teachers.map((teacher) => (
+                <div className="adminSlideItem" key={teacher.login}>
+                  <div>
+                    <strong>{teacher.login}</strong>
+                    <span>Создан: {new Date(teacher.createdAt).toLocaleString('ru-RU')}</span>
+                  </div>
+                  <div className="adminSlideActions">
+                    <button type="button" className="adminSecondaryButton" onClick={() => changeTeacherPassword(teacher.login)}>Сменить пароль</button>
+                    <button type="button" className="adminDangerButton" onClick={() => deleteTeacher(teacher.login)}>Удалить</button>
+                  </div>
+                </div>
+              ))}
+              {teachers.length === 0 && <p className="adminHint">Учётных записей преподавателей пока нет.</p>}
+            </div>
+          </section>
+        )}
+
         {role === 'admin' && activeAdminTab === 'backups' && (
           <section className="adminCard backupsCard">
             <div className="adminCardHeader">
