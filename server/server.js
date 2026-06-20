@@ -49,6 +49,8 @@ const ADMIN_SESSION_SECRET =
   crypto.randomBytes(32).toString('hex');
 const ADMIN_SESSION_COOKIE = 'histology_admin_session';
 const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const BACKUP_INTERVAL_HOURS = Math.max(1, Math.min(24 * 30, Number(process.env.BACKUP_INTERVAL_HOURS) || 24));
+const BACKUP_RETENTION_DAYS = Math.max(1, Math.min(3650, Number(process.env.BACKUP_RETENTION_DAYS) || 30));
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
@@ -494,6 +496,28 @@ async function createDataSnapshotBackup() {
   };
 }
 
+async function pruneExpiredDataBackups() {
+  const entries = await fs.readdir(BACKUP_DIR, { withFileTypes: true });
+  const expiresBefore = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+  await Promise.all(entries.map(async (entry) => {
+    if (!entry.isFile() || !entry.name.startsWith(`${BACKUP_SNAPSHOT_PREFIX}-`)) return;
+    const backupPath = path.join(BACKUP_DIR, entry.name);
+    const stats = await fs.stat(backupPath);
+    if (stats.mtimeMs < expiresBefore) await fs.rm(backupPath, { force: true });
+  }));
+}
+
+async function runScheduledBackup() {
+  try {
+    const backup = await createDataSnapshotBackup();
+    await pruneExpiredDataBackups();
+    console.info(`Создан плановый backup: ${backup.fileName}`);
+  } catch (error) {
+    console.error('Не удалось создать плановый backup:', error);
+  }
+}
+
 function getBackupFilePath(fileName) {
   const rawName = String(fileName || '');
   const safeName = path.basename(rawName);
@@ -644,6 +668,7 @@ async function initDatabase() {
 }
 
 await initDatabase();
+setInterval(runScheduledBackup, BACKUP_INTERVAL_HOURS * 60 * 60 * 1000).unref();
 
 async function countPublicSlideFiles() {
   try {
@@ -689,6 +714,10 @@ async function getHealthReport() {
         path: UPLOAD_LOG_DIR,
       },
       dziFiles: await countPublicSlideFiles(),
+    },
+    backups: {
+      intervalHours: BACKUP_INTERVAL_HOURS,
+      retentionDays: BACKUP_RETENTION_DAYS,
     },
     conversion: {
       vips: {
