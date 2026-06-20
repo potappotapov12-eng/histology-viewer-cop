@@ -43,7 +43,12 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   'postgres://postgres:postgres@127.0.0.1:5432/histology_viewer';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_LOGIN = String(process.env.ADMIN_LOGIN || 'admin').trim().toLowerCase();
 const TEACHER_PASSWORD = process.env.TEACHER_PASSWORD || '';
+const TEACHER_ACCOUNTS = parseTeacherAccounts(process.env.TEACHER_ACCOUNTS);
+if (!/^[a-z0-9_-]{3,64}$/.test(ADMIN_LOGIN)) {
+  throw new Error('ADMIN_LOGIN должен содержать только латинские буквы, цифры, _ или -');
+}
 const ADMIN_SESSION_SECRET_CONFIGURED = Boolean(process.env.ADMIN_SESSION_SECRET);
 const ADMIN_SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
@@ -253,34 +258,54 @@ function parseCookies(header = '') {
     }, {});
 }
 
-function signAdminSession(role, expiresAt) {
+function parseTeacherAccounts(value) {
+  if (!value) return [];
+  let accounts;
+  try {
+    accounts = JSON.parse(value);
+  } catch {
+    throw new Error('TEACHER_ACCOUNTS должен содержать корректный JSON-массив');
+  }
+
+  if (!Array.isArray(accounts)) throw new Error('TEACHER_ACCOUNTS должен быть JSON-массивом');
+  return accounts.map((account) => {
+    const login = String(account?.login || '').trim().toLowerCase();
+    const password = String(account?.password || '');
+    if (!/^[a-z0-9_-]{3,64}$/.test(login) || !password) {
+      throw new Error('Каждая учётная запись преподавателя должна иметь login и password');
+    }
+    return { login, password };
+  });
+}
+
+function signAdminSession(role, login, expiresAt) {
   return crypto
     .createHmac('sha256', ADMIN_SESSION_SECRET)
-    .update(`${role}.${expiresAt}`)
+    .update(`${role}.${login}.${expiresAt}`)
     .digest('hex');
 }
 
-function createAdminSessionToken(role) {
+function createAdminSessionToken(role, login) {
   const expiresAt = Date.now() + ADMIN_SESSION_TTL_MS;
-  return `${role}.${expiresAt}.${signAdminSession(role, expiresAt)}`;
+  return `${role}.${login}.${expiresAt}.${signAdminSession(role, login, expiresAt)}`;
 }
 
 function getSessionRole(token) {
-  const [role, expiresAtRaw, signature] = String(token || '').split('.');
+  const [role, login, expiresAtRaw, signature] = String(token || '').split('.');
   const expiresAt = Number(expiresAtRaw);
 
-  if (!['admin', 'teacher'].includes(role) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
+  if (!['admin', 'teacher'].includes(role) || !/^[a-z0-9_-]{3,64}$/.test(login) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
     return null;
   }
 
-  const expected = signAdminSession(role, expiresAt);
+  const expected = signAdminSession(role, login, expiresAt);
   const expectedBuffer = Buffer.from(expected);
   const signatureBuffer = Buffer.from(signature);
 
   return (
     expectedBuffer.length === signatureBuffer.length &&
     crypto.timingSafeEqual(expectedBuffer, signatureBuffer)
-  ) ? role : null;
+  ) ? { role, login } : null;
 }
 
 function getAdminCookieOptions({ expires = null } = {}) {
@@ -303,10 +328,10 @@ function getAdminCookieOptions({ expires = null } = {}) {
   return options.join('; ');
 }
 
-function setAdminSessionCookie(res, role) {
+function setAdminSessionCookie(res, role, login) {
   res.setHeader(
     'Set-Cookie',
-    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(createAdminSessionToken(role))}; ${getAdminCookieOptions()}`
+    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(createAdminSessionToken(role, login))}; ${getAdminCookieOptions()}`
   );
 }
 
@@ -323,20 +348,21 @@ function isAdminAuthenticated(req) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD) {
+  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD && TEACHER_ACCOUNTS.length === 0) {
     return res.status(503).json({
       error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
     });
   }
 
-  const role = isAdminAuthenticated(req);
-  if (!role) {
+  const session = isAdminAuthenticated(req);
+  if (!session) {
     return res.status(401).json({
       error: 'Требуется вход администратора',
     });
   }
 
-  req.adminRole = role;
+  req.adminRole = session.role;
+  req.adminLogin = session.login;
 
   return next();
 }
@@ -368,6 +394,12 @@ function isTeacherPasswordValid(value) {
     expectedBuffer.length === actualBuffer.length &&
     crypto.timingSafeEqual(expectedBuffer, actualBuffer)
   );
+}
+
+function isPasswordValid(expected, actual) {
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(String(actual || ''));
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
 await fs.mkdir(DATA_DIR, { recursive: true });
@@ -2086,39 +2118,45 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.get('/api/admin/session', (req, res) => {
-  const role = isAdminAuthenticated(req);
+  const session = isAdminAuthenticated(req);
   res.json({
     ok: true,
-    configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD),
-    authenticated: Boolean(role),
-    role,
+    configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD || TEACHER_ACCOUNTS.length),
+    authenticated: Boolean(session),
+    role: session?.role || '',
+    login: session?.login || '',
   });
 });
 
 app.post('/api/admin/login', (req, res) => {
-  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD) {
+  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD && TEACHER_ACCOUNTS.length === 0) {
     return res.status(503).json({
       error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
     });
   }
 
-  const role = isAdminPasswordValid(req.body?.password)
-    ? 'admin'
-    : isTeacherPasswordValid(req.body?.password)
-      ? 'teacher'
-      : null;
+  const login = String(req.body?.login || '').trim().toLowerCase();
+  const teacher = TEACHER_ACCOUNTS.find((account) => account.login === login);
+  const session = login === ADMIN_LOGIN.toLowerCase() && isAdminPasswordValid(req.body?.password)
+    ? { role: 'admin', login }
+    : teacher && isPasswordValid(teacher.password, req.body?.password)
+      ? { role: 'teacher', login: teacher.login }
+      : login === 'teacher' && isTeacherPasswordValid(req.body?.password)
+        ? { role: 'teacher', login }
+        : null;
 
-  if (!role) {
+  if (!session) {
     clearAdminSessionCookie(res);
     return res.status(401).json({
       error: 'Неверный пароль',
     });
   }
 
-  setAdminSessionCookie(res, role);
+  setAdminSessionCookie(res, session.role, session.login);
   return res.json({
     ok: true,
-    role,
+    role: session.role,
+    login: session.login,
   });
 });
 

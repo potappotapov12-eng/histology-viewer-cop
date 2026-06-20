@@ -1289,6 +1289,7 @@ function AdminLoginGate() {
     configured: false,
     authenticated: false,
   });
+  const [loginName, setLoginName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1331,7 +1332,7 @@ function AdminLoginGate() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ login: loginName, password }),
       });
       const data = await response.json().catch(() => ({}));
 
@@ -1389,18 +1390,26 @@ function AdminLoginGate() {
             <p>Введите пароль администратора, чтобы управлять препаратами и диагностиками.</p>
           </div>
           <label>
+            Логин
+            <input
+              value={loginName}
+              onChange={(event) => setLoginName(event.target.value)}
+              autoComplete="username"
+              autoFocus
+            />
+          </label>
+          <label>
             Пароль
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
-              autoFocus
             />
           </label>
           {error && <p className="adminLoginError">{error}</p>}
           <div className="adminLoginActions">
-            <button type="submit" disabled={isSubmitting || !password}>
+            <button type="submit" disabled={isSubmitting || !loginName || !password}>
               {isSubmitting ? 'Вход...' : 'Войти'}
             </button>
             <a href="/" className="adminSecondaryButton">Открыть атлас</a>

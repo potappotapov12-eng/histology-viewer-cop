@@ -47,6 +47,22 @@ export ADMIN_PASSWORD="сложный-пароль"
 export TEACHER_PASSWORD="пароль-преподавателя"
 ```
 
+Для отдельных логинов преподавателей используйте `TEACHER_ACCOUNTS` вместо
+общего пароля. Пример для `systemd` через `EnvironmentFile`:
+
+```ini
+# /etc/histology-viewer.env
+ADMIN_LOGIN=admin
+ADMIN_PASSWORD=сложный-пароль-администратора
+TEACHER_ACCOUNTS='[{"login":"ivanov","password":"пароль-иванова"},{"login":"petrova","password":"пароль-петровой"}]'
+ADMIN_SESSION_SECRET=длинный-постоянный-секрет
+```
+
+В override сервиса добавьте `EnvironmentFile=/etc/histology-viewer.env`, затем
+выполните `sudo systemctl daemon-reload` и `sudo systemctl restart histology-viewer`.
+Логины могут содержать латинские буквы, цифры, `_` и `-`. Старый
+`TEACHER_PASSWORD` сохраняет совместимый вход с логином `teacher`.
+
 Преподаватель может работать с препаратами, диагностиками и результатами, но
 не может восстановить backup. `ADMIN_PASSWORD` сохраняет полный доступ.
 
