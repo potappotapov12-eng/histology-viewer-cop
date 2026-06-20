@@ -12,7 +12,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const WORKER_PATH = path.join(PROJECT_ROOT, 'server', 'slide-worker.js');
 const OUTPUT_BASE = path.join(PROJECT_ROOT, 'public', 'slides', 'worker-test-fixture');
 
-async function createFakeVips(tempDir) {
+async function createFakeVips(tempDir, { createTile = true } = {}) {
   const executablePath = path.join(tempDir, 'vips');
   const script = `#!/usr/bin/env node
 import fs from 'node:fs/promises';
@@ -25,7 +25,7 @@ await fs.writeFile(
   outputBase + '.dzi',
   '<Image TileSize="256" Overlap="0" Format="jpeg"><Size Width="512" Height="512"/></Image>'
 );
-await fs.writeFile(path.join(outputBase + '_files', '0', '0_0.jpeg'), 'tile');
+${createTile ? "await fs.writeFile(path.join(outputBase + '_files', '0', '0_0.jpeg'), 'tile');" : ''}
 `;
 
   await fs.writeFile(executablePath, script, 'utf8');
@@ -94,4 +94,33 @@ test('slide worker creates and verifies DZI outside HTTP process', async (t) => 
 
   assert.match(dziContent, /<Image\b/);
   assert.equal(tileContent, 'tile');
+});
+
+test('slide worker rejects DZI without image tiles', async (t) => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'histology-slide-worker-'));
+  const inputPath = path.join(tempDir, 'fixture.tiff');
+  const worker = fork(WORKER_PATH, [], {
+    env: { ...process.env, PATH: `${tempDir}:${process.env.PATH}` },
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+  });
+
+  t.after(async () => {
+    worker.kill();
+    await fs.rm(tempDir, { recursive: true, force: true });
+    await fs.rm(`${OUTPUT_BASE}.dzi`, { force: true });
+    await fs.rm(`${OUTPUT_BASE}_files`, { recursive: true, force: true });
+  });
+
+  await createFakeVips(tempDir, { createTile: false });
+  await fs.writeFile(inputPath, 'fixture', 'utf8');
+
+  const result = await runWorker(worker, {
+    type: 'convert',
+    taskId: 'worker-invalid-dzi-task',
+    inputPath,
+    slideId: 'worker-test-fixture',
+  });
+
+  assert.equal(result.type, 'error');
+  assert.match(result.error.message, /не содержит ни одного поддерживаемого тайла/i);
 });

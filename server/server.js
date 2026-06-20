@@ -1688,6 +1688,30 @@ function getDziTilesFolderName(dziContent) {
   return match[1].replace(/\/$/, '');
 }
 
+async function validateDziFileAndTiles(dziPath, tilesPath) {
+  const dziContent = await fs.readFile(dziPath, 'utf8');
+  const imageMatch = dziContent.match(/<Image\b[^>]*\bTileSize=["'](\d+)["'][^>]*\bFormat=["']([a-z0-9]+)["'][^>]*>/i);
+  const sizeMatch = dziContent.match(/<Size\b[^>]*\bWidth=["'](\d+)["'][^>]*\bHeight=["'](\d+)["'][^>]*\/?\s*>/i);
+
+  if (!imageMatch || !sizeMatch || Number(imageMatch[1]) < 1 || Number(sizeMatch[1]) < 1 || Number(sizeMatch[2]) < 1) {
+    throw new Error('DZI-файл не содержит корректную структуру Deep Zoom');
+  }
+
+  if (!(await pathExists(tilesPath))) {
+    throw new Error(`Папка тайлов отсутствует: ${path.basename(tilesPath)}`);
+  }
+
+  const tilePath =
+    await findFileByExtension(tilesPath, '.jpeg') ||
+    await findFileByExtension(tilesPath, '.jpg') ||
+    await findFileByExtension(tilesPath, '.png') ||
+    await findFileByExtension(tilesPath, '.webp');
+
+  if (!tilePath) {
+    throw new Error('Папка DZI не содержит тайлов JPEG, PNG или WebP');
+  }
+}
+
 async function copyDirectory(sourceDir, targetDir) {
   await removeIfExists(targetDir);
   await fs.mkdir(path.dirname(targetDir), { recursive: true });
@@ -1711,11 +1735,7 @@ async function prepareDziFromDirectory(directoryPath, slideId) {
 
   const sourceTilesDir = path.join(dziDir, originalTilesFolderName);
 
-  if (!(await pathExists(sourceTilesDir))) {
-    throw new Error(
-      `В ZIP-архиве не найдена папка тайлов: ${originalTilesFolderName}`
-    );
-  }
+  await validateDziFileAndTiles(sourceDziPath, sourceTilesDir);
 
   const targetDziPath = path.join(PUBLIC_SLIDES_DIR, `${slideId}.dzi`);
   const targetTilesDir = path.join(PUBLIC_SLIDES_DIR, `${slideId}_files`);

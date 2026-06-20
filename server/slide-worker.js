@@ -24,6 +24,21 @@ async function removeIfExists(targetPath) {
   await fs.rm(targetPath, { recursive: true, force: true });
 }
 
+async function findTileFile(directoryPath) {
+  const entries = await fs.readdir(directoryPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryPath = path.join(directoryPath, entry.name);
+    if (entry.isFile() && /\.(?:jpe?g|png|webp)$/i.test(entry.name)) return entryPath;
+    if (entry.isDirectory()) {
+      const tilePath = await findTileFile(entryPath);
+      if (tilePath) return tilePath;
+    }
+  }
+
+  return null;
+}
+
 async function ensureDziOutput(outputBase) {
   const dziPath = `${outputBase}.dzi`;
   const tilesDir = `${outputBase}_files`;
@@ -38,8 +53,15 @@ async function ensureDziOutput(outputBase) {
 
   const dziContent = await fs.readFile(dziPath, 'utf8');
 
-  if (!/<Image\b/i.test(dziContent) || !/<Size\b/i.test(dziContent)) {
+  const imageMatch = dziContent.match(/<Image\b[^>]*\bTileSize=["'](\d+)["'][^>]*\bFormat=["']([a-z0-9]+)["'][^>]*>/i);
+  const sizeMatch = dziContent.match(/<Size\b[^>]*\bWidth=["'](\d+)["'][^>]*\bHeight=["'](\d+)["'][^>]*\/?\s*>/i);
+
+  if (!imageMatch || !sizeMatch || Number(imageMatch[1]) < 1 || Number(sizeMatch[1]) < 1 || Number(sizeMatch[2]) < 1) {
     throw new Error('Созданный DZI-файл не похож на корректный Deep Zoom Image');
+  }
+
+  if (!(await findTileFile(tilesDir))) {
+    throw new Error('Созданный DZI не содержит ни одного поддерживаемого тайла изображения');
   }
 }
 
