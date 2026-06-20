@@ -8,7 +8,7 @@ import AdmZip from 'adm-zip';
 import pg from 'pg';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { execFile } from 'child_process';
+import { execFile, fork } from 'child_process';
 import { promisify } from 'util';
 import {
   gradeMatchingAnswer,
@@ -83,6 +83,10 @@ const BACKUP_STORES = ['slides', 'diagnostics', 'diagnostic_results'];
 const BACKUP_SNAPSHOT_PREFIX = 'snapshot';
 
 const jobs = new Map();
+const slideConversionQueue = [];
+const slideConversionTasks = new Map();
+let activeSlideConversionTask = null;
+let slideWorker = null;
 
 function createJob(message = 'Ожидание обработки...') {
   const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -108,6 +112,124 @@ function updateJob(id, patch) {
   jobs.set(id, {
     ...current,
     ...patch,
+  });
+}
+
+function createSlideWorkerError(details) {
+  const error = new Error(details?.message || 'Worker конвертации препарата завершился с ошибкой');
+  error.code = details?.code || null;
+  error.signal = details?.signal || null;
+  error.stdout = details?.stdout || '';
+  error.stderr = details?.stderr || '';
+  return error;
+}
+
+function rejectActiveSlideConversion(error) {
+  if (!activeSlideConversionTask) return;
+
+  const task = activeSlideConversionTask;
+  activeSlideConversionTask = null;
+  slideConversionTasks.delete(task.taskId);
+  task.reject(error);
+}
+
+function runNextSlideConversion() {
+  if (activeSlideConversionTask || slideConversionQueue.length === 0) return;
+
+  if (!slideWorker?.connected) {
+    startSlideWorker();
+    return;
+  }
+
+  const task = slideConversionQueue.shift();
+  activeSlideConversionTask = task;
+  task.onProgress?.({
+    progress: 50,
+    message: 'Задача передана worker конвертации...',
+  });
+
+  slideWorker.send(
+    {
+      type: 'convert',
+      taskId: task.taskId,
+      inputPath: task.inputPath,
+      slideId: task.slideId,
+    },
+    (error) => {
+      if (!error) return;
+      rejectActiveSlideConversion(error);
+      runNextSlideConversion();
+    }
+  );
+}
+
+function startSlideWorker() {
+  if (slideWorker?.connected) return;
+
+  slideWorker = fork(path.join(__dirname, 'slide-worker.js'), [], {
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+  });
+
+  slideWorker.on('message', (message) => {
+    const task = activeSlideConversionTask;
+    if (!task || message?.taskId !== task.taskId) return;
+
+    if (message.type === 'progress') {
+      task.onProgress?.(message);
+      return;
+    }
+
+    if (!['done', 'error'].includes(message.type)) return;
+
+    activeSlideConversionTask = null;
+    slideConversionTasks.delete(task.taskId);
+
+    if (message.type === 'done') {
+      task.resolve(message.source);
+    } else if (message.type === 'error') {
+      task.reject(createSlideWorkerError(message.error));
+    }
+
+    runNextSlideConversion();
+  });
+
+  slideWorker.on('error', (error) => {
+    rejectActiveSlideConversion(error);
+  });
+
+  slideWorker.on('exit', (code, signal) => {
+    slideWorker = null;
+
+    if (activeSlideConversionTask) {
+      rejectActiveSlideConversion(
+        new Error(
+          `Worker конвертации завершился неожиданно (код ${code ?? 'нет'}, сигнал ${signal || 'нет'}).`
+        )
+      );
+    }
+
+    if (slideConversionQueue.length > 0) {
+      startSlideWorker();
+      runNextSlideConversion();
+    }
+  });
+}
+
+function convertSlideToDziInWorker(inputPath, slideId, onProgress) {
+  return new Promise((resolve, reject) => {
+    const task = {
+      taskId: crypto.randomUUID(),
+      inputPath,
+      slideId,
+      onProgress,
+      resolve,
+      reject,
+    };
+
+    slideConversionTasks.set(task.taskId, task);
+    slideConversionQueue.push(task);
+    startSlideWorker();
+    runNextSlideConversion();
   });
 }
 
@@ -578,6 +700,12 @@ async function getHealthReport() {
         supportedExtensions: [],
       },
       acceptedUploadExtensions: [...ALLOWED_SLIDE_EXTENSIONS],
+      worker: {
+        mode: 'sequential',
+        status: slideWorker?.connected ? 'ready' : 'idle',
+        queuedTasks: slideConversionQueue.length,
+        activeTaskId: activeSlideConversionTask?.taskId || null,
+      },
       notes: [],
     },
   };
@@ -1665,25 +1793,6 @@ async function prepareSlideFile(uploadedFile, slideId) {
   };
 }
 
-async function ensureDziOutput(outputBase) {
-  const dziPath = `${outputBase}.dzi`;
-  const tilesDir = `${outputBase}_files`;
-
-  if (!(await pathExists(dziPath))) {
-    throw new Error('Конвертация завершилась без DZI-файла результата');
-  }
-
-  if (!(await pathExists(tilesDir))) {
-    throw new Error('Конвертация завершилась без папки тайлов DZI');
-  }
-
-  const dziContent = await fs.readFile(dziPath, 'utf8');
-
-  if (!/<Image\b/i.test(dziContent) || !/<Size\b/i.test(dziContent)) {
-    throw new Error('Созданный DZI-файл не похож на корректный Deep Zoom Image');
-  }
-}
-
 async function countDirectoryFiles(directoryPath, limit = 5000) {
   if (limit <= 0) {
     return { count: 0, capped: true };
@@ -1863,69 +1972,12 @@ function getFriendlyConversionError(inputPath, error) {
   return error;
 }
 
-async function writeUploadErrorLog({ slideId, inputPath, outputBase, error, startedAt }) {
-  const timestamp = new Date().toISOString();
-  const logName = `${timestamp.replace(/[:.]/g, '-')}-${slugify(slideId || 'slide')}.json`;
-  let inputStats;
-
+async function convertSlideToDzi(inputPath, slideId, onProgress) {
   try {
-    const stats = await fs.stat(inputPath);
-    inputStats = {
-      sizeBytes: stats.size,
-      modifiedAt: stats.mtime.toISOString(),
-    };
-  } catch {
-    inputStats = null;
-  }
-
-  const log = {
-    timestamp,
-    slideId,
-    inputPath,
-    outputBase,
-    extension: path.extname(inputPath).toLowerCase(),
-    durationMs: startedAt ? Date.now() - startedAt : null,
-    inputStats,
-    error: {
-      message: error?.message || String(error),
-      code: error?.code || null,
-      signal: error?.signal || null,
-      stdout: String(error?.stdout || ''),
-      stderr: String(error?.stderr || ''),
-    },
-  };
-
-  await fs.writeFile(
-    path.join(UPLOAD_LOG_DIR, logName),
-    `${JSON.stringify(log, null, 2)}\n`,
-    'utf8'
-  );
-}
-
-async function convertSlideToDzi(inputPath, slideId) {
-  const outputBase = path.join(PUBLIC_SLIDES_DIR, slideId);
-  const startedAt = Date.now();
-
-  await removeIfExists(`${outputBase}.dzi`);
-  await removeIfExists(`${outputBase}_files`);
-
-  try {
-    await execFileAsync('vips', ['dzsave', inputPath, outputBase]);
+    return await convertSlideToDziInWorker(inputPath, slideId, onProgress);
   } catch (error) {
-    await writeUploadErrorLog({
-      slideId,
-      inputPath,
-      outputBase,
-      error,
-      startedAt,
-    });
-
     throw getFriendlyConversionError(inputPath, error);
   }
-
-  await ensureDziOutput(outputBase);
-
-  return `/slides/${slideId}.dzi`;
 }
 
 async function deleteSlideFiles(slideId) {
@@ -2665,7 +2717,13 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
           message: 'Конвертация препарата в DZI. Это может занять несколько минут...',
         });
 
-        slideSource = await convertSlideToDzi(prepared.inputPath, slideId);
+        slideSource = await convertSlideToDzi(
+          prepared.inputPath,
+          slideId,
+          ({ progress, message }) => {
+            updateJob(job.id, { progress, message });
+          }
+        );
       }
     }
 
@@ -2776,7 +2834,13 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
           message: 'Конвертация нового файла в DZI. Это может занять несколько минут...',
         });
 
-        slideSource = await convertSlideToDzi(prepared.inputPath, currentId);
+        slideSource = await convertSlideToDzi(
+          prepared.inputPath,
+          currentId,
+          ({ progress, message }) => {
+            updateJob(job.id, { progress, message });
+          }
+        );
       }
     }
 

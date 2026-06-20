@@ -76,6 +76,10 @@ ADMIN_PASSWORD="test123" ADMIN_SESSION_SECRET="local-dev-secret" npm run dev
 Ошибки конвертации сохраняются в `server/data/upload-logs`, а резервные копии
 данных можно создавать и восстанавливать во вкладке `Backups` в админке.
 
+Тяжелая конвертация `vips dzsave` выполняется отдельным Node worker-процессом.
+Задачи обрабатываются последовательно: это не блокирует HTTP-сервер и не дает
+нескольким большим препаратам одновременно занять память и диск.
+
 ## Запуск
 
 В папке `server`:
@@ -101,7 +105,8 @@ curl http://127.0.0.1:4000/api/health
 Если всё работает, ответ вернётся с HTTP 200 и `ok: true`. В ответе есть
 состояние PostgreSQL, счётчики препаратов, диагностик, результатов, права на
 папки `raw-slides`, `public/slides`, `server/data/upload-logs`, состояние
-`vips/OpenSlide` и количество готовых DZI-файлов в `public/slides`.
+`vips/OpenSlide`, очередь worker (`conversion.worker`) и количество готовых
+DZI-файлов в `public/slides`.
 `adminAuth.configured` показывает, задан ли пароль администратора, а
 `adminAuth.sessionSecretConfigured` - задан ли постоянный секрет cookie-сессий.
 
