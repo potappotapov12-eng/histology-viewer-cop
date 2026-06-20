@@ -2532,6 +2532,37 @@ app.post('/api/diagnostics/:id/check-attempt', async (req, res) => {
   });
 });
 
+app.get('/api/diagnostics/:id/results/:resultId', async (req, res) => {
+  const studentName = String(req.query.studentName || '').trim();
+  const group = String(req.query.group || '').trim();
+  const results = await readJsonArray(DIAGNOSTIC_RESULTS_JSON);
+  const result = results.find((item) => (
+    item.id === req.params.resultId &&
+    item.diagnosticId === req.params.id &&
+    normalizeParticipantValue(item.studentName) === normalizeParticipantValue(studentName) &&
+    normalizeParticipantValue(item.group) === normalizeParticipantValue(group)
+  ));
+
+  if (!result) return res.status(404).json({ error: 'Результат не найден' });
+
+  res.json({
+    id: result.id,
+    score: result.score,
+    total: result.total,
+    percent: result.percent,
+    reviewComment: result.reviewComment || '',
+    answers: (result.answers || []).map((answer) => ({
+      questionId: answer.questionId,
+      type: answer.type,
+      isCorrect: answer.isCorrect,
+      earnedPoints: answer.earnedPoints,
+      points: answer.points,
+      needsReview: answer.needsReview,
+      reviewComment: answer.reviewComment || '',
+    })),
+  });
+});
+
 app.post('/api/diagnostics/:id/submit', async (req, res) => {
   try {
     const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
@@ -2695,9 +2726,11 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
 
     res.json({
       ok: true,
+      id: result.id,
       score,
       total,
       percent,
+      reviewComment: result.reviewComment || '',
       answers: answers.map((answer) => ({
         questionId: answer.questionId,
         type: answer.type,
@@ -2705,6 +2738,7 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
         earnedPoints: answer.earnedPoints,
         points: answer.points,
         needsReview: answer.needsReview,
+        reviewComment: answer.reviewComment || '',
       })),
     });
   } catch (error) {

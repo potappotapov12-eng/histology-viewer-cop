@@ -1623,6 +1623,23 @@ function DiagnosticPage() {
     return () => window.clearTimeout(timerId);
   }, [isStarted, isSubmitting, result, submitDiagnostic, timeLeft]);
 
+  useEffect(() => {
+    if (!result?.id || !student.studentName || !student.group) return undefined;
+
+    const refreshResult = async () => {
+      const query = new URLSearchParams({
+        studentName: student.studentName,
+        group: student.group,
+      });
+      const response = await fetch(`/api/diagnostics/${diagnosticId}/results/${result.id}?${query}`);
+      if (response.ok) setResult(await response.json());
+    };
+
+    refreshResult().catch(() => {});
+    const intervalId = window.setInterval(() => refreshResult().catch(() => {}), 30000);
+    return () => window.clearInterval(intervalId);
+  }, [diagnosticId, result?.id, student.group, student.studentName]);
+
   if (isLoading) return <LoadingApp />;
 
   if (loadingError) {
@@ -1665,6 +1682,9 @@ function DiagnosticPage() {
           <p>
             Результат: <strong>{result.score} из {result.total}</strong> ({result.percent}%).
           </p>
+          {result.reviewComment && (
+            <p className="diagnosticReviewComment">Комментарий преподавателя: {result.reviewComment}</p>
+          )}
           <div className="diagnosticResultList">
             {diagnostic.questions.map((question, index) => {
               const answer = resultAnswerById.get(question.id);
@@ -1682,6 +1702,7 @@ function DiagnosticPage() {
                   <small>
                     {Number(answer?.earnedPoints || 0)} / {Number(answer?.points || 0)}
                   </small>
+                  {answer?.reviewComment && <p>{answer.reviewComment}</p>}
                 </div>
               );
             })}
