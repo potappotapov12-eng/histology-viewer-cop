@@ -2396,7 +2396,7 @@ app.get('/api/admin/diagnostics/:id/preview', async (req, res) => {
   });
 });
 
-app.get('/api/admin/backups', async (req, res) => {
+app.get('/api/admin/backups', requireAdministrator, async (req, res) => {
   try {
     res.json(await listDataBackups());
   } catch (error) {
@@ -2406,7 +2406,7 @@ app.get('/api/admin/backups', async (req, res) => {
   }
 });
 
-app.post('/api/admin/backups', async (req, res) => {
+app.post('/api/admin/backups', requireAdministrator, async (req, res) => {
   try {
     const backup = await createDataSnapshotBackup();
 
@@ -2421,7 +2421,7 @@ app.post('/api/admin/backups', async (req, res) => {
   }
 });
 
-app.get('/api/admin/backups/:fileName', async (req, res) => {
+app.get('/api/admin/backups/:fileName', requireAdministrator, async (req, res) => {
   try {
     const backupPath = getBackupFilePath(req.params.fileName);
 

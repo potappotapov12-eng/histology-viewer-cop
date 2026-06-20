@@ -1305,6 +1305,7 @@ function AdminLoginGate() {
       isLoading: false,
       configured: Boolean(data.configured),
       authenticated: Boolean(data.authenticated),
+      role: data.role || '',
     });
   }, []);
 
@@ -1409,10 +1410,10 @@ function AdminLoginGate() {
     );
   }
 
-  return <AdminDashboard onLogout={logout} />;
+  return <AdminDashboard onLogout={logout} role={authState.role} />;
 }
 
-function AdminDashboard({ onLogout }) {
+function AdminDashboard({ onLogout, role }) {
   const [slides, setSlides] = useState([]);
   const [status, setStatus] = useState('');
   const [jobProgress, setJobProgress] = useState(null);
@@ -1606,10 +1607,12 @@ function AdminDashboard({ onLogout }) {
     loadDiagnostics().catch((error) => {
       setDiagnosticStatus(`Ошибка: ${error.message}`);
     });
-    loadBackups().catch((error) => {
-      setBackupStatus(`Ошибка: ${error.message}`);
-    });
-  }, []);
+    if (role === 'admin') {
+      loadBackups().catch((error) => {
+        setBackupStatus(`Ошибка: ${error.message}`);
+      });
+    }
+  }, [role]);
 
   useEffect(() => {
     setHasDiagnosticDraft(Boolean(window.localStorage.getItem(DIAGNOSTIC_DRAFT_KEY)));
@@ -2486,13 +2489,13 @@ function AdminDashboard({ onLogout }) {
         >
           Диагностики
         </button>
-        <button
+        {role === 'admin' && <button
           type="button"
           className={activeAdminTab === 'backups' ? 'active' : ''}
           onClick={() => setActiveAdminTab('backups')}
         >
           Backups
-        </button>
+        </button>}
       </nav>
 
       <main className="adminLayout">
@@ -3847,7 +3850,7 @@ function AdminDashboard({ onLogout }) {
         )}
         </>
         )}
-        {activeAdminTab === 'backups' && (
+        {role === 'admin' && activeAdminTab === 'backups' && (
           <section className="adminCard backupsCard">
             <div className="adminCardHeader">
               <div>
