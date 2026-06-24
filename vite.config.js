@@ -102,6 +102,8 @@ export default defineConfig({
     proxy: {
       '/api': 'http://127.0.0.1:4000',
       '/slides': 'http://127.0.0.1:4000',
+      '/lti': 'http://127.0.0.1:4000',
+      '/.well-known': 'http://127.0.0.1:4000',
     },
     watch: {
       ignored: [

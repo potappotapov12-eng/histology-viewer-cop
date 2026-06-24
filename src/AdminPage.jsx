@@ -11,6 +11,10 @@ const INITIAL_FORM = {
   diagnosticSigns: [],
   selfCheckQuestions: '',
   source: '',
+  courseIds: [],
+  groupIds: [],
+  visibleForStudents: true,
+  visibleForResidents: false,
 };
 
 const INITIAL_DIAGNOSTIC_FORM = {
@@ -20,6 +24,8 @@ const INITIAL_DIAGNOSTIC_FORM = {
   endsAt: '',
   durationMinutes: '',
   isPublished: true,
+  courseIds: [],
+  groupIds: [],
   questions: [],
 };
 
@@ -1899,7 +1905,7 @@ function AdminDashboard({ onLogout, role }) {
       Object.entries(form).forEach(([key, value]) => {
         formData.append(
           key,
-          key === 'diagnosticSigns' ? JSON.stringify(value) : value
+          key === 'diagnosticSigns' || key === 'courseIds' || key === 'groupIds' ? JSON.stringify(value) : value
         );
       });
 
@@ -2683,6 +2689,27 @@ function AdminDashboard({ onLogout, role }) {
             </label>
 
             <label>
+              Moodle-курсы (ID через запятую; пусто — все курсы)
+              <input
+                value={(form.courseIds || []).join(', ')}
+                onChange={(event) => updateField('courseIds', event.target.value.split(',').map((value) => Number(value.trim())).filter(Number.isInteger))}
+                placeholder="1, 2"
+              />
+            </label>
+
+            <label>
+              Moodle-группы (ID через запятую; пусто — все группы курса)
+              <input
+                value={(form.groupIds || []).join(', ')}
+                onChange={(event) => updateField('groupIds', event.target.value.split(',').map((value) => Number(value.trim())).filter(Number.isInteger))}
+                placeholder="10, 11"
+              />
+            </label>
+
+            <label className="adminInlineCheck"><input type="checkbox" checked={form.visibleForStudents !== false} onChange={(event) => updateField('visibleForStudents', event.target.checked)} />Доступен студентам</label>
+            <label className="adminInlineCheck"><input type="checkbox" checked={form.visibleForResidents === true} onChange={(event) => updateField('visibleForResidents', event.target.checked)} />Доступен ординаторам (обезличенно)</label>
+
+            <label>
               Описание
               <textarea
                 rows="5"
@@ -3085,6 +3112,14 @@ function AdminDashboard({ onLogout, role }) {
                   onChange={(event) => updateDiagnosticField('durationMinutes', event.target.value)}
                   placeholder="Например: 20"
                 />
+              </label>
+              <label>
+                Moodle-курсы (ID через запятую)
+                <input value={(diagnosticForm.courseIds || []).join(', ')} onChange={(event) => updateDiagnosticField('courseIds', event.target.value.split(',').map((value) => Number(value.trim())).filter(Number.isInteger))} placeholder="Пусто — все" />
+              </label>
+              <label>
+                Moodle-группы (ID через запятую)
+                <input value={(diagnosticForm.groupIds || []).join(', ')} onChange={(event) => updateDiagnosticField('groupIds', event.target.value.split(',').map((value) => Number(value.trim())).filter(Number.isInteger))} placeholder="Пусто — все" />
               </label>
             </div>
 

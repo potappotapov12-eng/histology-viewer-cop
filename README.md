@@ -161,6 +161,78 @@ DZI-файлов в `public/slides`.
 `adminAuth.configured` показывает, задан ли пароль администратора, а
 `adminAuth.sessionSecretConfigured` - задан ли постоянный секрет cookie-сессий.
 
+## Moodle LTI 1.3 / LTI Advantage
+
+Пользовательская часть атласа запускается из Moodle. Задайте `LTI_*` переменные
+из [.env.example](.env.example): ключи инструмента, issuer, client/deployment ID,
+OIDC/token/JWKS Moodle и публичный `LTI_REDIRECT_URI`. Приватный ключ хранится
+только в окружении сервера.
+
+В Moodle создайте External Tool:
+
+```text
+Tool name: Гистологический атлас
+LTI version: LTI 1.3
+Tool URL: https://example.com/lti/launch
+Login initiation URL: https://example.com/lti/login
+Redirect URI: https://example.com/lti/launch
+JWKS URL: https://example.com/.well-known/jwks.json
+```
+
+Включите сервис Assignment and Grade Services и выдайте scope lineitem/score.
+После сдачи диагностики результат сохраняется локально в `lti_grade_results` и
+отправляется в Gradebook; при ошибке сохраняются `status=failed`, `attempts` и
+`last_error`. Администратор повторяет отправку: `POST /api/admin/results/:id/resend-to-moodle`.
+
+Если Moodle не передаёт группу в LTI claims, добавьте custom parameters:
+`custom_moodle_course_id`, `custom_moodle_course_shortname`,
+`custom_moodle_group_id`, `custom_moodle_group_name`, `custom_user_group`.
+Пользователь без группы не получает материал, ограниченный группой.
+
+Роли: `admin`, `teacher_full`, `teacher_limited`, `resident`, `student`.
+Ограниченный преподаватель не может изменять/загружать/удалять слайды;
+ординатор получает обезличенный список и viewer без описаний и меток. Backend
+проверяет права независимо от скрытия элементов интерфейса.
+
+### Защита DZI через Nginx
+
+В production не публикуйте `public/slides` открытым location. Пример:
+
+```nginx
+location /slides/ {
+  auth_request /_slide_access;
+  alias /srv/histology-viewer/public/slides/;
+}
+location = /_slide_access {
+  internal;
+  proxy_pass http://127.0.0.1:4000/api/auth/check-slide-access;
+  proxy_pass_request_body off;
+  proxy_set_header Content-Length "";
+  proxy_set_header Cookie $http_cookie;
+  proxy_set_header X-Original-URI $request_uri;
+}
+```
+
+В development backend сам защищает `/slides`. Для проверки откройте инструмент
+из Moodle и убедитесь, что `/api/me` возвращает `authProvider: moodle_lti`.
+Для resident проверьте отсутствие названия/описания в `/api/slides`; для
+`teacher_limited` — 403 на POST/DELETE `/api/admin/slides` и доступ к POST
+`/api/admin/diagnostics`.
+
+### Локальный просмотр без Moodle
+
+Только для локальной разработки можно включить `DEV_AUTH_BYPASS=true` и
+выбрать роль через `DEV_AUTH_ROLE` (например, `teacher_full`, `student` или
+`resident`). Также доступны `DEV_AUTH_COURSE_ID` и `DEV_AUTH_GROUP_ID`.
+Backend создаёт mock-пользователя для `/api/me` и всех middleware, поэтому
+можно проверить каталог, viewer, фильтры и группы без Moodle. **Никогда не
+включайте этот параметр на сервере:** при `NODE_ENV=production` bypass
+принудительно игнорируется.
+
+```bash
+DEV_AUTH_BYPASS=true DEV_AUTH_ROLE=teacher_full npm --prefix server run dev
+```
+
 ## Разработка и деплой
 
 Код хранится в GitHub, а ветка `main` считается стабильной версией для сервера.

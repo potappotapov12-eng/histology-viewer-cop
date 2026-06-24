@@ -55,6 +55,23 @@ const ADMIN_SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
   crypto.randomBytes(32).toString('hex');
 const ADMIN_SESSION_COOKIE = 'histology_admin_session';
+const LTI_SESSION_COOKIE = 'histology_lti_session';
+const LTI_SESSION_SECRET = process.env.LTI_SESSION_SECRET || ADMIN_SESSION_SECRET;
+const LTI_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const LTI_COOKIE_SECURE = process.env.LTI_COOKIE_SECURE === 'true';
+const LTI_TOOL_NAME = process.env.LTI_TOOL_NAME || 'Гистологический атлас';
+const LTI_PRIVATE_KEY = process.env.LTI_PRIVATE_KEY || '';
+const LTI_PUBLIC_KEY = process.env.LTI_PUBLIC_KEY || '';
+const LTI_KEY_ID = process.env.LTI_KEY_ID || 'histology-viewer-lti-key';
+const LTI_REDIRECT_URI = process.env.LTI_REDIRECT_URI || `http://localhost:${PORT}/lti/launch`;
+const LTI_CONFIG = {
+  issuer: process.env.LTI_PLATFORM_ISSUER || '',
+  clientId: process.env.LTI_CLIENT_ID || '',
+  deploymentId: process.env.LTI_DEPLOYMENT_ID || '',
+  authLoginUrl: process.env.LTI_AUTH_LOGIN_URL || '',
+  authTokenUrl: process.env.LTI_AUTH_TOKEN_URL || '',
+  jwksUrl: process.env.LTI_PLATFORM_JWKS_URL || '',
+};
 const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const BACKUP_INTERVAL_HOURS = Math.max(1, Math.min(24 * 30, Number(process.env.BACKUP_INTERVAL_HOURS) || 24));
 const BACKUP_RETENTION_DAYS = Math.max(1, Math.min(3650, Number(process.env.BACKUP_RETENTION_DAYS) || 30));
@@ -295,7 +312,7 @@ function getSessionRole(token) {
   const [role, login, expiresAtRaw, signature] = String(token || '').split('.');
   const expiresAt = Number(expiresAtRaw);
 
-  if (!['admin', 'teacher'].includes(role) || !/^[a-z0-9_-]{3,64}$/.test(login) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
+  if (!['admin', 'teacher', 'teacher_full', 'teacher_limited'].includes(role) || !/^[a-z0-9_-]{3,64}$/.test(login) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
     return null;
   }
 
@@ -307,6 +324,46 @@ function getSessionRole(token) {
     expectedBuffer.length === signatureBuffer.length &&
     crypto.timingSafeEqual(expectedBuffer, signatureBuffer)
   ) ? { role, login } : null;
+}
+
+const ROLE_PERMISSIONS = {
+  admin: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: true, canManageLti: true, canSendGradesToMoodle: true },
+  teacher_full: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
+  teacher_limited: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: false, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
+  resident: { canViewSlides: true, canViewSlideCards: false, canViewSlideDescriptions: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
+  student: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
+};
+
+function permissionsForRole(role) { return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.student; }
+const DEV_AUTH_ENABLED = process.env.NODE_ENV !== 'production' && process.env.DEV_AUTH_BYPASS === 'true';
+const DEV_AUTH_ROLE = Object.hasOwn(ROLE_PERMISSIONS, process.env.DEV_AUTH_ROLE)
+  ? process.env.DEV_AUTH_ROLE
+  : 'teacher_full';
+
+function getDevUser() {
+  if (!DEV_AUTH_ENABLED) return null;
+
+  const courseId = process.env.DEV_AUTH_COURSE_ID || 'dev-course';
+  const groupId = process.env.DEV_AUTH_GROUP_ID || 'dev-group';
+  return {
+    authProvider: 'dev',
+    moodleUserId: 'dev-user',
+    userId: 'dev-user',
+    name: 'Dev User',
+    email: 'dev@example.local',
+    role: DEV_AUTH_ROLE,
+    permissions: permissionsForRole(DEV_AUTH_ROLE),
+    courseIds: [courseId],
+    groupIds: [groupId],
+    courseExternalIds: [courseId],
+  };
+}
+function roleFromLtiRoles(roles = []) {
+  const values = roles.map((value) => String(value).toLowerCase());
+  if (values.some((value) => /administrator/.test(value))) return 'admin';
+  if (values.some((value) => /instructor|teacher|faculty/.test(value))) return 'teacher_full';
+  if (values.some((value) => /resident|ординатор/.test(value))) return 'resident';
+  return 'student';
 }
 
 function getAdminCookieOptions({ expires = null } = {}) {
@@ -369,8 +426,104 @@ function requireAdmin(req, res, next) {
 }
 
 function requireAdministrator(req, res, next) {
-  if (req.adminRole !== 'admin') return res.status(403).json({ error: 'Эта операция доступна только администратору' });
+  if ((req.user?.role || req.adminRole) !== 'admin') return res.status(403).json({ error: 'Эта операция доступна только администратору' });
   return next();
+}
+
+function base64Url(value) {
+  return Buffer.from(value).toString('base64url');
+}
+function parseBase64UrlJson(value) {
+  return JSON.parse(Buffer.from(String(value), 'base64url').toString('utf8'));
+}
+function createLtiSessionToken(user) {
+  const payload = base64Url(JSON.stringify({ ...user, exp: Date.now() + LTI_SESSION_TTL_MS }));
+  const signature = crypto.createHmac('sha256', LTI_SESSION_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+function getLtiSession(req) {
+  const token = parseCookies(req.headers.cookie)[LTI_SESSION_COOKIE];
+  const [payload, signature] = String(token || '').split('.');
+  if (!payload || !signature) return null;
+  const expected = crypto.createHmac('sha256', LTI_SESSION_SECRET).update(payload).digest('base64url');
+  if (expected.length !== signature.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return null;
+  try {
+    const session = parseBase64UrlJson(payload);
+    return session.exp > Date.now() ? session : null;
+  } catch { return null; }
+}
+function setLtiSessionCookie(res, user) {
+  const options = ['HttpOnly', 'SameSite=Lax', 'Path=/', `Max-Age=${Math.floor(LTI_SESSION_TTL_MS / 1000)}`];
+  if (LTI_COOKIE_SECURE) options.push('Secure');
+  res.setHeader('Set-Cookie', `${LTI_SESSION_COOKIE}=${createLtiSessionToken(user)}; ${options.join('; ')}`);
+}
+function requireAuth(req, res, next) {
+  const devUser = getDevUser();
+  if (devUser) { req.user = devUser; return next(); }
+  const lti = getLtiSession(req);
+  if (lti) { req.user = lti; return next(); }
+  const admin = isAdminAuthenticated(req);
+  if (admin) {
+    req.user = { authProvider: 'local_admin', role: admin.role === 'teacher' ? 'teacher_full' : admin.role, login: admin.login, permissions: permissionsForRole(admin.role === 'teacher' ? 'teacher_full' : admin.role), courseIds: [], groupIds: [] };
+    return next();
+  }
+  return res.status(401).json({ error: 'Требуется авторизация через Moodle LTI', authenticated: false });
+}
+function requirePermission(permission) {
+  return (req, res, next) => requireAuth(req, res, () => req.user.permissions?.[permission]
+    ? next()
+    : res.status(403).json({ error: `Недостаточно прав: ${permission}` }));
+}
+function requireCourseAccess(courseId) {
+  return (req, res, next) => requireAuth(req, res, () => {
+    if (req.user.role === 'admin' || !courseId || req.user.courseIds?.map(String).includes(String(courseId))) return next();
+    return res.status(403).json({ error: 'Нет доступа к курсу' });
+  });
+}
+function maskSlideForResident(slide, index) {
+  return { id: slide.id, title: `Препарат ${index + 1}`, description: '', diagnosis: '', diagnosticSigns: [], selfCheckQuestions: [], viewerOnly: true, source: slide.source, dziUrl: slide.source };
+}
+async function getSlideAccess(slide, user) {
+  if (user.role === 'admin' || user.role === 'teacher_full') return true;
+  if (user.role === 'teacher_limited') return true;
+  if (user.role === 'resident' && slide.visibleForResidents === false) return false;
+  if (user.role === 'student' && slide.visibleForStudents === false) return false;
+  // Dev identities do not have internal Moodle database IDs. Keep course/group
+  // assignments testable in production while allowing a local UI preview.
+  if (user.authProvider === 'dev') return true;
+  const [{ rows: courses }, { rows: groups }] = await Promise.all([
+    pool.query('SELECT course_id FROM slide_course_access WHERE slide_id = $1', [slide.id]),
+    pool.query('SELECT group_id FROM slide_group_access WHERE slide_id = $1', [slide.id]),
+  ]);
+  const courseIds = courses.map((row) => String(row.course_id));
+  const groupIds = groups.map((row) => String(row.group_id));
+  if (!courseIds.length && !groupIds.length) return true;
+  if (courseIds.length && !courseIds.some((id) => user.courseIds?.map(String).includes(id))) return false;
+  return !groupIds.length || groupIds.some((id) => user.groupIds?.map(String).includes(id));
+}
+async function requireSlideAccess(slideId) {
+  const slides = await readSlides();
+  const slide = slides.find((item) => item.id === slideId);
+  return slide;
+}
+async function getDiagnosticAccess(diagnostic, user) {
+  if (user.role === 'resident') return false;
+  if (['admin', 'teacher_full', 'teacher_limited'].includes(user.role)) return true;
+  if (user.authProvider === 'dev') return true;
+  const [{ rows: courses }, { rows: groups }] = await Promise.all([
+    pool.query('SELECT course_id FROM diagnostic_course_access WHERE diagnostic_id=$1', [diagnostic.id]),
+    pool.query('SELECT group_id FROM diagnostic_group_access WHERE diagnostic_id=$1', [diagnostic.id]),
+  ]);
+  const courseIds = courses.map((row) => String(row.course_id)); const groupIds = groups.map((row) => String(row.group_id));
+  if (!courseIds.length && !groupIds.length) return true;
+  return (!courseIds.length || courseIds.some((id) => user.courseIds?.map(String).includes(id))) && (!groupIds.length || groupIds.some((id) => user.groupIds?.map(String).includes(id)));
+}
+function requireDiagnosticAccess(diagnosticId) {
+  return async (req, res, next) => {
+    const diagnostic = (await readJsonArray(DIAGNOSTICS_JSON)).find((item) => item.id === diagnosticId);
+    if (!diagnostic || !(await getDiagnosticAccess(diagnostic, req.user))) return res.status(403).json({ error: 'Нет доступа к диагностике' });
+    req.diagnostic = diagnostic; return next();
+  };
 }
 
 function isAdminPasswordValid(value) {
@@ -432,10 +585,14 @@ async function isStoredPasswordValid(passwordHash, password) {
 
 async function listTeacherAccounts() {
   const { rows } = await pool.query(
-    'SELECT login, created_at, updated_at FROM teacher_accounts ORDER BY login'
+    'SELECT login, role, active, course_ids, group_ids, created_at, updated_at FROM teacher_accounts ORDER BY login'
   );
   return rows.map((row) => ({
     login: row.login,
+    role: row.role,
+    active: row.active,
+    courseIds: row.course_ids || [],
+    groupIds: row.group_ids || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));
@@ -443,7 +600,7 @@ async function listTeacherAccounts() {
 
 async function findStoredTeacherAccount(login) {
   const { rows } = await pool.query(
-    'SELECT login, password_hash FROM teacher_accounts WHERE login = $1',
+    'SELECT login, password_hash, role, active, course_ids, group_ids FROM teacher_accounts WHERE login = $1',
     [login]
   );
   return rows[0] || null;
@@ -464,8 +621,19 @@ const upload = multer({
 
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: false }));
 app.use(
   '/slides',
+  async (req, res, next) => {
+    try {
+      const slideId = String(req.path).match(/^\/([^/_./]+)(?:\.dzi|_files\/)/)?.[1];
+      const user = getLtiSession(req) || (isAdminAuthenticated(req) ? { role: 'admin' } : null);
+      if (!user || !slideId) return res.status(401).json({ error: 'Требуется авторизация для доступа к препарату' });
+      const slide = (await readSlides()).find((item) => item.id === slideId);
+      if (!slide || !(await getSlideAccess(slide, user))) return res.status(403).json({ error: 'Нет доступа к препарату' });
+      return next();
+    } catch (error) { return next(error); }
+  },
   express.static(PUBLIC_SLIDES_DIR, {
     immutable: true,
     maxAge: '30d',
@@ -741,9 +909,36 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS teacher_accounts (
         login text PRIMARY KEY,
         password_hash text NOT NULL,
+        role text NOT NULL DEFAULT 'teacher_full',
+        active boolean NOT NULL DEFAULT true,
+        course_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+        group_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now()
       );
+      ALTER TABLE teacher_accounts ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'teacher_full';
+      ALTER TABLE teacher_accounts ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
+      ALTER TABLE teacher_accounts ADD COLUMN IF NOT EXISTS course_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE teacher_accounts ADD COLUMN IF NOT EXISTS group_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+      CREATE TABLE IF NOT EXISTS moodle_platforms (id bigserial PRIMARY KEY, issuer text UNIQUE NOT NULL, client_id text NOT NULL, deployment_id text NOT NULL, auth_login_url text, auth_token_url text, jwks_url text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+      CREATE TABLE IF NOT EXISTS moodle_users (id bigserial PRIMARY KEY, platform_id bigint REFERENCES moodle_platforms(id) ON DELETE CASCADE, moodle_user_id text NOT NULL, name text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', role text NOT NULL DEFAULT 'student', claims jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(platform_id, moodle_user_id));
+      CREATE TABLE IF NOT EXISTS moodle_courses (id bigserial PRIMARY KEY, platform_id bigint REFERENCES moodle_platforms(id) ON DELETE CASCADE, lti_context_id text NOT NULL, course_id text NOT NULL, shortname text NOT NULL DEFAULT '', title text NOT NULL DEFAULT '', data jsonb NOT NULL DEFAULT '{}'::jsonb, UNIQUE(platform_id, lti_context_id));
+      CREATE TABLE IF NOT EXISTS moodle_groups (id bigserial PRIMARY KEY, course_id bigint REFERENCES moodle_courses(id) ON DELETE CASCADE, moodle_group_id text NOT NULL, name text NOT NULL DEFAULT '', UNIQUE(course_id, moodle_group_id));
+      CREATE TABLE IF NOT EXISTS moodle_memberships (id bigserial PRIMARY KEY, moodle_user_id bigint REFERENCES moodle_users(id) ON DELETE CASCADE, course_id bigint REFERENCES moodle_courses(id) ON DELETE CASCADE, group_id bigint REFERENCES moodle_groups(id) ON DELETE CASCADE, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(moodle_user_id, course_id, group_id));
+      CREATE TABLE IF NOT EXISTS lti_launches (id uuid PRIMARY KEY, state text UNIQUE NOT NULL, nonce text NOT NULL, platform_id bigint REFERENCES moodle_platforms(id), moodle_user_id bigint REFERENCES moodle_users(id), course_id bigint REFERENCES moodle_courses(id), id_token_claims jsonb NOT NULL DEFAULT '{}'::jsonb, ags jsonb NOT NULL DEFAULT '{}'::jsonb, expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+      CREATE TABLE IF NOT EXISTS lti_resource_links (id bigserial PRIMARY KEY, course_id bigint REFERENCES moodle_courses(id) ON DELETE CASCADE, resource_link_id text NOT NULL, title text NOT NULL DEFAULT '', data jsonb NOT NULL DEFAULT '{}'::jsonb, UNIQUE(course_id, resource_link_id));
+      CREATE TABLE IF NOT EXISTS lti_grade_items (id bigserial PRIMARY KEY, diagnostic_id text NOT NULL, course_id bigint REFERENCES moodle_courses(id) ON DELETE CASCADE, resource_link_id bigint REFERENCES lti_resource_links(id) ON DELETE SET NULL, lineitem_url text, label text NOT NULL DEFAULT '', score_maximum numeric, UNIQUE(diagnostic_id, course_id));
+      CREATE TABLE IF NOT EXISTS lti_grade_results (id bigserial PRIMARY KEY, result_id text NOT NULL, moodle_user_id bigint REFERENCES moodle_users(id), course_id bigint REFERENCES moodle_courses(id), diagnostic_id text NOT NULL, score_given numeric NOT NULL, score_maximum numeric NOT NULL, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, last_error text, sent_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(result_id));
+      CREATE TABLE IF NOT EXISTS slide_course_access (slide_id text REFERENCES slides(id) ON DELETE CASCADE, course_id bigint REFERENCES moodle_courses(id) ON DELETE CASCADE, PRIMARY KEY(slide_id, course_id));
+      CREATE TABLE IF NOT EXISTS slide_group_access (slide_id text REFERENCES slides(id) ON DELETE CASCADE, group_id bigint REFERENCES moodle_groups(id) ON DELETE CASCADE, PRIMARY KEY(slide_id, group_id));
+      CREATE TABLE IF NOT EXISTS diagnostic_course_access (diagnostic_id text REFERENCES diagnostics(id) ON DELETE CASCADE, course_id bigint REFERENCES moodle_courses(id) ON DELETE CASCADE, PRIMARY KEY(diagnostic_id, course_id));
+      CREATE TABLE IF NOT EXISTS diagnostic_group_access (diagnostic_id text REFERENCES diagnostics(id) ON DELETE CASCADE, group_id bigint REFERENCES moodle_groups(id) ON DELETE CASCADE, PRIMARY KEY(diagnostic_id, group_id));
+      CREATE INDEX IF NOT EXISTS moodle_users_external_idx ON moodle_users(moodle_user_id);
+      CREATE INDEX IF NOT EXISTS moodle_courses_context_idx ON moodle_courses(lti_context_id);
+      CREATE INDEX IF NOT EXISTS moodle_groups_course_idx ON moodle_groups(course_id);
+      CREATE INDEX IF NOT EXISTS lti_resource_links_link_idx ON lti_resource_links(resource_link_id);
+      CREATE INDEX IF NOT EXISTS grade_results_result_idx ON lti_grade_results(result_id);
       CREATE INDEX IF NOT EXISTS slides_data_gin_idx
         ON slides USING gin (data);
     `);
@@ -976,7 +1171,26 @@ function normalizeSlideData(slide, { strict = false } = {}) {
     description: String(slide.description || '').trim(),
     diagnosticSigns: parseDiagnosticSigns(slide.diagnosticSigns),
     selfCheckQuestions: parseSelfCheckQuestions(slide.selfCheckQuestions),
+    visibleForStudents: slide.visibleForStudents !== false,
+    visibleForResidents: slide.visibleForResidents !== false,
+    anonymizeForResidents: slide.anonymizeForResidents !== false,
+    courseIds: Array.isArray(slide.courseIds) ? slide.courseIds : [],
+    groupIds: Array.isArray(slide.groupIds) ? slide.groupIds : [],
   };
+}
+
+async function syncAccessLinks(table, entityColumn, entityId, ids) {
+  const safeIds = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter(Number.isInteger))];
+  await pool.query(`DELETE FROM ${table} WHERE ${entityColumn}=$1`, [entityId]);
+  for (const id of safeIds) await pool.query(`INSERT INTO ${table} (${entityColumn}, ${table.includes('_group_') ? 'group_id' : 'course_id'}) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [entityId, id]);
+}
+async function syncSlideAccess(slide) {
+  await syncAccessLinks('slide_course_access', 'slide_id', slide.id, slide.courseIds);
+  await syncAccessLinks('slide_group_access', 'slide_id', slide.id, slide.groupIds);
+}
+async function syncDiagnosticAccess(diagnostic) {
+  await syncAccessLinks('diagnostic_course_access', 'diagnostic_id', diagnostic.id, diagnostic.courseIds);
+  await syncAccessLinks('diagnostic_group_access', 'diagnostic_id', diagnostic.id, diagnostic.groupIds);
 }
 
 async function readSlides() {
@@ -1507,6 +1721,10 @@ function sanitizeDiagnosticPayload(payload, existingDiagnostic = null) {
         ? Math.round(durationMinutes)
         : 0,
     isPublished: payload.isPublished !== false,
+    courseIds: Array.isArray(payload.courseIds) ? payload.courseIds : (existingDiagnostic?.courseIds || []),
+    groupIds: Array.isArray(payload.groupIds) ? payload.groupIds : (existingDiagnostic?.groupIds || []),
+    resourceLinkId: String(payload.resourceLinkId || existingDiagnostic?.resourceLinkId || ''),
+    createdBy: existingDiagnostic?.createdBy || '',
     questions,
     createdAt: existingDiagnostic?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -2159,11 +2377,185 @@ async function saveSlideToDatabase(slideData) {
   }
 
   await writeSlides(slides);
+  await syncSlideAccess(slideData);
 }
 
-app.get('/api/slides', async (req, res) => {
+function ltiConfigurationError() {
+  return !LTI_CONFIG.issuer || !LTI_CONFIG.clientId || !LTI_CONFIG.deploymentId || !LTI_CONFIG.authLoginUrl || !LTI_CONFIG.jwksUrl;
+}
+async function getPlatform(issuer, clientId, deploymentId) {
+  const configured = await pool.query('SELECT * FROM moodle_platforms WHERE issuer = $1 AND client_id = $2 AND deployment_id = $3', [issuer, clientId, deploymentId]);
+  if (configured.rows[0]) return configured.rows[0];
+  if (issuer !== LTI_CONFIG.issuer || clientId !== LTI_CONFIG.clientId || deploymentId !== LTI_CONFIG.deploymentId) return null;
+  const result = await pool.query(
+    `INSERT INTO moodle_platforms (issuer, client_id, deployment_id, auth_login_url, auth_token_url, jwks_url)
+     VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (issuer) DO UPDATE SET client_id=EXCLUDED.client_id, deployment_id=EXCLUDED.deployment_id, auth_login_url=EXCLUDED.auth_login_url, auth_token_url=EXCLUDED.auth_token_url, jwks_url=EXCLUDED.jwks_url RETURNING *`,
+    [issuer, clientId, deploymentId, LTI_CONFIG.authLoginUrl, LTI_CONFIG.authTokenUrl, LTI_CONFIG.jwksUrl]
+  );
+  return result.rows[0];
+}
+async function verifyLtiIdToken(token, platform, nonce) {
+  const [headerRaw, payloadRaw, signatureRaw] = String(token || '').split('.');
+  if (!headerRaw || !payloadRaw || !signatureRaw) throw new Error('Некорректный id_token');
+  const header = parseBase64UrlJson(headerRaw);
+  const claims = parseBase64UrlJson(payloadRaw);
+  if (header.alg !== 'RS256' || !header.kid) throw new Error('Поддерживается только JWT RS256 с kid');
+  const jwksResponse = await fetch(platform.jwks_url);
+  if (!jwksResponse.ok) throw new Error('Не удалось получить JWKS Moodle');
+  const jwks = await jwksResponse.json();
+  const jwk = (jwks.keys || []).find((key) => key.kid === header.kid && key.kty === 'RSA');
+  if (!jwk) throw new Error('Ключ подписи Moodle не найден в JWKS');
+  const valid = crypto.verify('RSA-SHA256', Buffer.from(`${headerRaw}.${payloadRaw}`), crypto.createPublicKey({ key: jwk, format: 'jwk' }), Buffer.from(signatureRaw, 'base64url'));
+  if (!valid) throw new Error('Подпись id_token недействительна');
+  const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  if (claims.iss !== platform.issuer || !audience.includes(platform.client_id) || claims.exp * 1000 < Date.now() || claims.nonce !== nonce) throw new Error('Проверка issuer, audience, срока действия или nonce не пройдена');
+  const deployment = claims['https://purl.imsglobal.org/spec/lti/claim/deployment_id'];
+  if (deployment !== platform.deployment_id) throw new Error('Некорректный LTI deployment_id');
+  return claims;
+}
+function ltiCustom(claims) { return claims['https://purl.imsglobal.org/spec/lti/claim/custom'] || {}; }
+async function persistLtiLaunch({ platform, launch, claims }) {
+  const context = claims['https://purl.imsglobal.org/spec/lti/claim/context'] || {};
+  const custom = ltiCustom(claims);
+  const contextId = String(context.id || custom.custom_moodle_course_id || '');
+  if (!contextId) throw new Error('Moodle не передал LTI context/course');
+  const courseExternalId = String(custom.custom_moodle_course_id || context.label || contextId);
+  const courseResult = await pool.query(
+    `INSERT INTO moodle_courses (platform_id,lti_context_id,course_id,shortname,title,data) VALUES ($1,$2,$3,$4,$5,$6::jsonb)
+     ON CONFLICT(platform_id,lti_context_id) DO UPDATE SET course_id=EXCLUDED.course_id, shortname=EXCLUDED.shortname, title=EXCLUDED.title, data=EXCLUDED.data RETURNING *`,
+    [platform.id, contextId, courseExternalId, String(custom.custom_moodle_course_shortname || context.label || ''), String(context.title || ''), JSON.stringify(context)]
+  );
+  const course = courseResult.rows[0];
+  const role = roleFromLtiRoles(claims['https://purl.imsglobal.org/spec/lti/claim/roles'] || []);
+  const userResult = await pool.query(
+    `INSERT INTO moodle_users (platform_id,moodle_user_id,name,email,role,claims) VALUES ($1,$2,$3,$4,$5,$6::jsonb)
+     ON CONFLICT(platform_id,moodle_user_id) DO UPDATE SET name=EXCLUDED.name,email=EXCLUDED.email,role=EXCLUDED.role,claims=EXCLUDED.claims,updated_at=now() RETURNING *`,
+    [platform.id, String(claims.sub), String(claims.name || `${claims.given_name || ''} ${claims.family_name || ''}`).trim(), String(claims.email || ''), role, JSON.stringify(claims)]
+  );
+  const user = userResult.rows[0];
+  const groupExternalId = custom.custom_moodle_group_id || custom.custom_user_group || claims['https://purl.imsglobal.org/spec/lti/claim/groups']?.[0];
+  let group = null;
+  if (groupExternalId) {
+    const groupResult = await pool.query('INSERT INTO moodle_groups (course_id,moodle_group_id,name) VALUES ($1,$2,$3) ON CONFLICT(course_id,moodle_group_id) DO UPDATE SET name=EXCLUDED.name RETURNING *', [course.id, String(groupExternalId), String(custom.custom_moodle_group_name || custom.custom_user_group || groupExternalId)]);
+    group = groupResult.rows[0];
+  }
+  await pool.query('INSERT INTO moodle_memberships (moodle_user_id,course_id,group_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [user.id, course.id, group?.id || null]);
+  const resource = claims['https://purl.imsglobal.org/spec/lti/claim/resource_link'] || {};
+  let resourceLink = null;
+  if (resource.id) resourceLink = (await pool.query('INSERT INTO lti_resource_links (course_id,resource_link_id,title,data) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT(course_id,resource_link_id) DO UPDATE SET title=EXCLUDED.title,data=EXCLUDED.data RETURNING *', [course.id, String(resource.id), String(resource.title || ''), JSON.stringify(resource)])).rows[0];
+  const ags = claims['https://purl.imsglobal.org/spec/lti-ags/claim/endpoint'] || {};
+  await pool.query('UPDATE lti_launches SET platform_id=$2,moodle_user_id=$3,course_id=$4,id_token_claims=$5::jsonb,ags=$6::jsonb WHERE id=$1', [launch.id, platform.id, user.id, course.id, JSON.stringify(claims), JSON.stringify({ ...ags, resourceLinkId: resourceLink?.id || null })]);
+  return { user, course, group, role, resourceLink, ags };
+}
+
+app.get('/.well-known/jwks.json', (req, res) => {
+  if (!LTI_PUBLIC_KEY) return res.status(503).json({ error: 'LTI_PUBLIC_KEY не настроен' });
+  try {
+    const publicKey = crypto.createPublicKey(LTI_PUBLIC_KEY).export({ format: 'jwk' });
+    res.json({ keys: [{ ...publicKey, use: 'sig', alg: 'RS256', kid: LTI_KEY_ID }] });
+  } catch { res.status(500).json({ error: 'LTI_PUBLIC_KEY имеет некорректный формат' }); }
+});
+app.get('/lti/login', async (req, res) => {
+  try {
+    if (ltiConfigurationError()) return res.status(503).json({ error: 'LTI не настроен' });
+    const issuer = String(req.query.iss || ''); const clientId = String(req.query.client_id || LTI_CONFIG.clientId); const deploymentId = String(req.query.lti_deployment_id || LTI_CONFIG.deploymentId);
+    const platform = await getPlatform(issuer, clientId, deploymentId);
+    if (!platform) return res.status(400).json({ error: 'Неизвестная Moodle platform/client_id' });
+    const state = crypto.randomUUID(); const nonce = crypto.randomUUID(); const launchId = crypto.randomUUID();
+    await pool.query('INSERT INTO lti_launches (id,state,nonce,platform_id,expires_at) VALUES ($1,$2,$3,$4,now() + interval \'10 minutes\')', [launchId, state, nonce, platform.id]);
+    const url = new URL(platform.auth_login_url);
+    url.searchParams.set('response_type', 'id_token'); url.searchParams.set('response_mode', 'form_post'); url.searchParams.set('scope', 'openid'); url.searchParams.set('prompt', 'none'); url.searchParams.set('client_id', platform.client_id); url.searchParams.set('redirect_uri', LTI_REDIRECT_URI); url.searchParams.set('login_hint', String(req.query.login_hint || '')); url.searchParams.set('state', state); url.searchParams.set('nonce', nonce);
+    if (req.query.lti_message_hint) url.searchParams.set('lti_message_hint', String(req.query.lti_message_hint));
+    return res.redirect(url.toString());
+  } catch (error) { return res.status(400).json({ error: error.message }); }
+});
+app.post('/lti/launch', async (req, res) => {
+  try {
+    const launch = (await pool.query('SELECT * FROM lti_launches WHERE state=$1 AND expires_at > now()', [String(req.body.state || '')])).rows[0];
+    if (!launch) return res.status(400).json({ error: 'LTI state отсутствует, истёк или уже использован' });
+    const platform = (await pool.query('SELECT * FROM moodle_platforms WHERE id=$1', [launch.platform_id])).rows[0];
+    const claims = await verifyLtiIdToken(req.body.id_token, platform, launch.nonce);
+    const persisted = await persistLtiLaunch({ platform, launch, claims });
+    // Keep the audited launch (and its AGS endpoint) for grade retries, while invalidating state.
+    await pool.query('UPDATE lti_launches SET state=$2, expires_at=now() WHERE id=$1', [launch.id, `used-${crypto.randomUUID()}`]);
+    setLtiSessionCookie(res, { authProvider: 'moodle_lti', moodleUserId: persisted.user.moodle_user_id, userId: persisted.user.id, name: persisted.user.name, email: persisted.user.email, role: persisted.role, permissions: permissionsForRole(persisted.role), courseIds: [persisted.course.id], groupIds: persisted.group ? [persisted.group.id] : [], courseExternalIds: [persisted.course.course_id], resourceLinkId: persisted.resourceLink?.id || null, ags: persisted.ags, platformId: platform.id });
+    return res.redirect('/');
+  } catch (error) { return res.status(401).json({ error: `LTI launch отклонён: ${error.message}` }); }
+});
+
+app.get('/api/me', (req, res) => {
+  const devUser = getDevUser();
+  if (devUser) {
+    return res.json({
+      authenticated: true,
+      authProvider: 'dev',
+      role: devUser.role,
+      moodleUserId: devUser.moodleUserId,
+      name: devUser.name,
+      email: devUser.email,
+      courses: devUser.courseExternalIds,
+      groups: devUser.groupIds,
+      permissions: devUser.permissions,
+    });
+  }
+  const user = getLtiSession(req);
+  if (!user) return res.json({ authenticated: false });
+  return res.json({ authenticated: true, authProvider: 'moodle_lti', role: user.role, moodleUserId: user.moodleUserId, name: user.name, email: user.email, courses: user.courseExternalIds || [], groups: user.groupIds || [], permissions: user.permissions });
+});
+app.get('/api/auth/check-slide-access', requireAuth, async (req, res) => {
+  const originalUri = String(req.get('X-Original-URI') || '');
+  const slideId = String(req.query.slideId || req.query.slide_id || originalUri.match(/^\/slides\/([^/_./]+)(?:\.dzi|_files\/)/)?.[1] || '');
+  const slide = await requireSlideAccess(slideId);
+  if (!slide || !(await getSlideAccess(slide, req.user))) return res.status(403).json({ error: 'Нет доступа к препарату' });
+  return res.status(204).end();
+});
+
+function createClientAssertion(audience) {
+  if (!LTI_PRIVATE_KEY) throw new Error('LTI_PRIVATE_KEY не настроен');
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: LTI_KEY_ID }));
+  const payload = base64Url(JSON.stringify({ iss: LTI_CONFIG.clientId, sub: LTI_CONFIG.clientId, aud: audience, iat: now, exp: now + 300, jti: crypto.randomUUID() }));
+  return `${header}.${payload}.${crypto.sign('RSA-SHA256', Buffer.from(`${header}.${payload}`), LTI_PRIVATE_KEY).toString('base64url')}`;
+}
+async function getAgsAccessToken() {
+  if (!LTI_CONFIG.authTokenUrl) throw new Error('LTI_AUTH_TOKEN_URL не настроен');
+  const form = new URLSearchParams({ grant_type: 'client_credentials', client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: createClientAssertion(LTI_CONFIG.authTokenUrl), scope: 'https://purl.imsglobal.org/spec/lti-ags/scope/score' });
+  const response = await fetch(LTI_CONFIG.authTokenUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form });
+  if (!response.ok) throw new Error(`Moodle token endpoint: ${response.status} ${await response.text()}`);
+  const data = await response.json();
+  if (!data.access_token) throw new Error('Moodle не вернул access_token для AGS');
+  return data.access_token;
+}
+async function sendGradeToMoodle(queueItem, session) {
+  if (!session?.ags?.lineitems) throw new Error('В LTI launch отсутствует AGS lineitems endpoint');
+  const token = await getAgsAccessToken();
+  let gradeItem = (await pool.query('SELECT * FROM lti_grade_items WHERE diagnostic_id=$1 AND course_id=$2', [queueItem.diagnostic_id, queueItem.course_id])).rows[0];
+  if (!gradeItem?.lineitem_url) {
+    const lineitemResponse = await fetch(session.ags.lineitems, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/vnd.ims.lis.v2.lineitem+json' }, body: JSON.stringify({ label: `Гистологический атлас: ${queueItem.diagnostic_id}`, scoreMaximum: Number(queueItem.score_maximum), resourceId: queueItem.diagnostic_id, resourceLinkId: session.ags.resource_link_id || undefined }) });
+    if (!lineitemResponse.ok) throw new Error(`Не удалось создать Moodle line item: ${lineitemResponse.status} ${await lineitemResponse.text()}`);
+    const lineitem = await lineitemResponse.json();
+    gradeItem = (await pool.query('INSERT INTO lti_grade_items (diagnostic_id,course_id,resource_link_id,lineitem_url,label,score_maximum) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT(diagnostic_id,course_id) DO UPDATE SET lineitem_url=EXCLUDED.lineitem_url RETURNING *', [queueItem.diagnostic_id, queueItem.course_id, session.resourceLinkId || null, lineitem.id, lineitem.label || '', queueItem.score_maximum])).rows[0];
+  }
+  const user = (await pool.query('SELECT moodle_user_id FROM moodle_users WHERE id=$1', [queueItem.moodle_user_id])).rows[0];
+  if (!user) throw new Error('Moodle user для результата не найден');
+  const response = await fetch(`${gradeItem.lineitem_url}/scores`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/vnd.ims.lis.v1.score+json' }, body: JSON.stringify({ userId: user.moodle_user_id, scoreGiven: Number(queueItem.score_given), scoreMaximum: Number(queueItem.score_maximum), activityProgress: 'Completed', gradingProgress: 'FullyGraded', timestamp: new Date().toISOString() }) });
+  if (!response.ok) throw new Error(`Moodle не принял оценку: ${response.status} ${await response.text()}`);
+  await pool.query('UPDATE lti_grade_results SET status=$2,attempts=attempts+1,last_error=NULL,sent_at=now(),updated_at=now() WHERE id=$1', [queueItem.id, 'sent']);
+}
+async function queueAndSendGrade(result, user) {
+  if (user.authProvider !== 'moodle_lti' || !user.userId || !user.courseIds?.[0]) return null;
+  const inserted = await pool.query('INSERT INTO lti_grade_results (result_id,moodle_user_id,course_id,diagnostic_id,score_given,score_maximum,status) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(result_id) DO UPDATE SET score_given=EXCLUDED.score_given,score_maximum=EXCLUDED.score_maximum,status=$7,updated_at=now() RETURNING *', [result.id, user.userId, user.courseIds[0], result.diagnosticId, result.score, result.total || 1, 'pending']);
+  try { await sendGradeToMoodle(inserted.rows[0], user); } catch (error) { await pool.query('UPDATE lti_grade_results SET status=$2,attempts=attempts+1,last_error=$3,updated_at=now() WHERE id=$1', [inserted.rows[0].id, 'failed', error.message]); }
+  return (await pool.query('SELECT * FROM lti_grade_results WHERE result_id=$1', [result.id])).rows[0];
+}
+
+app.get('/api/slides', requireAuth, async (req, res) => {
   const slides = await readSlides();
-  res.json(slides);
+  const allowed = [];
+  for (const slide of slides) if (await getSlideAccess(slide, req.user)) allowed.push(slide);
+  res.json(req.user.role === 'resident'
+    ? allowed.map((slide, index) => maskSlideForResident(slide, index))
+    : allowed);
 });
 
 app.get('/api/health', async (req, res) => {
@@ -2197,8 +2589,8 @@ app.post('/api/admin/login', async (req, res) => {
     ? { role: 'admin', login }
     : teacher && isPasswordValid(teacher.password, req.body?.password)
       ? { role: 'teacher', login: teacher.login }
-      : storedTeacher && await isStoredPasswordValid(storedTeacher.password_hash, req.body?.password)
-        ? { role: 'teacher', login: storedTeacher.login }
+      : storedTeacher && storedTeacher.active && await isStoredPasswordValid(storedTeacher.password_hash, req.body?.password)
+        ? { role: storedTeacher.role || 'teacher_full', login: storedTeacher.login }
       : login === 'teacher' && isTeacherPasswordValid(req.body?.password)
         ? { role: 'teacher', login }
         : null;
@@ -2225,10 +2617,19 @@ app.post('/api/admin/logout', (req, res) => {
   });
 });
 
-app.use('/api/admin', requireAdmin);
+app.use('/api/admin', requireAuth);
 
 app.get('/api/admin/teachers', requireAdministrator, async (req, res) => {
   res.json(await listTeacherAccounts());
+});
+
+app.get('/api/admin/moodle/courses', requirePermission('canCreateDiagnostics'), async (req, res) => {
+  const { rows } = await pool.query('SELECT id, course_id, shortname, title, lti_context_id FROM moodle_courses ORDER BY title, shortname');
+  res.json(rows);
+});
+app.get('/api/admin/moodle/groups', requirePermission('canCreateDiagnostics'), async (req, res) => {
+  const { rows } = await pool.query('SELECT g.id, g.moodle_group_id, g.name, g.course_id FROM moodle_groups g ORDER BY g.name');
+  res.json(rows);
 });
 
 app.post('/api/admin/teachers', requireAdministrator, async (req, res) => {
@@ -2239,16 +2640,28 @@ app.post('/api/admin/teachers', requireAdministrator, async (req, res) => {
       return res.status(400).json({ error: 'Этот логин зарезервирован конфигурацией сервера' });
     }
 
+    const role = ['teacher_full', 'teacher_limited'].includes(req.body?.role) ? req.body.role : 'teacher_full';
     await pool.query(
-      'INSERT INTO teacher_accounts (login, password_hash) VALUES ($1, $2)',
-      [login, await hashAccountPassword(password)]
+      'INSERT INTO teacher_accounts (login, password_hash, role, active, course_ids, group_ids) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)',
+      [login, await hashAccountPassword(password), role, req.body?.active !== false, JSON.stringify(Array.isArray(req.body?.courseIds) ? req.body.courseIds : []), JSON.stringify(Array.isArray(req.body?.groupIds) ? req.body.groupIds : [])]
     );
-    res.status(201).json({ ok: true, login });
+    res.status(201).json({ ok: true, login, role });
   } catch (error) {
     res.status(error.code === '23505' ? 409 : 400).json({
       error: error.code === '23505' ? 'Такой логин уже существует' : error.message,
     });
   }
+});
+
+app.put('/api/admin/teachers/:login', requireAdministrator, async (req, res) => {
+  try {
+    const login = normalizeAccountLogin(req.params.login);
+    const role = String(req.body?.role || '');
+    if (!['teacher_full', 'teacher_limited'].includes(role)) return res.status(400).json({ error: 'Некорректная роль преподавателя' });
+    const result = await pool.query('UPDATE teacher_accounts SET role=$2, active=$3, course_ids=$4::jsonb, group_ids=$5::jsonb, updated_at=now() WHERE login=$1', [login, role, req.body?.active !== false, JSON.stringify(Array.isArray(req.body?.courseIds) ? req.body.courseIds : []), JSON.stringify(Array.isArray(req.body?.groupIds) ? req.body.groupIds : [])]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Преподаватель не найден' });
+    return res.json({ ok: true, login, role });
+  } catch (error) { return res.status(400).json({ error: error.message }); }
 });
 
 app.put('/api/admin/teachers/:login/password', requireAdministrator, async (req, res) => {
@@ -2277,12 +2690,12 @@ app.delete('/api/admin/teachers/:login', requireAdministrator, async (req, res) 
   }
 });
 
-app.get('/api/admin/slides', async (req, res) => {
+app.get('/api/admin/slides', requirePermission('canViewSlides'), async (req, res) => {
   const slides = await readSlides();
   res.json(await withSlideAdminMetadata(slides));
 });
 
-app.get('/api/admin/diagnostics', async (req, res) => {
+app.get('/api/admin/diagnostics', requirePermission('canCreateDiagnostics'), async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
   const results = await readJsonArray(DIAGNOSTIC_RESULTS_JSON);
 
@@ -2300,10 +2713,10 @@ app.get('/api/admin/diagnostics', async (req, res) => {
   );
 });
 
-app.post('/api/admin/diagnostics', async (req, res) => {
+app.post('/api/admin/diagnostics', requirePermission('canCreateDiagnostics'), async (req, res) => {
   try {
     const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
-    const diagnostic = sanitizeDiagnosticPayload(req.body);
+    const diagnostic = { ...sanitizeDiagnosticPayload(req.body), createdBy: req.user.login || req.user.moodleUserId || String(req.user.userId || '') };
     await validateDiagnosticForPublication(diagnostic);
 
     if (diagnostics.some((item) => item.id === diagnostic.id)) {
@@ -2314,6 +2727,7 @@ app.post('/api/admin/diagnostics', async (req, res) => {
 
     diagnostics.push(diagnostic);
     await writeJsonArray(DIAGNOSTICS_JSON, diagnostics);
+    await syncDiagnosticAccess(diagnostic);
 
     res.json({
       ok: true,
@@ -2326,7 +2740,7 @@ app.post('/api/admin/diagnostics', async (req, res) => {
   }
 });
 
-app.put('/api/admin/diagnostics/:id', async (req, res) => {
+app.put('/api/admin/diagnostics/:id', requirePermission('canEditOwnDiagnostics'), async (req, res) => {
   try {
     const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
     const existingIndex = diagnostics.findIndex((item) => item.id === req.params.id);
@@ -2335,6 +2749,9 @@ app.put('/api/admin/diagnostics/:id', async (req, res) => {
       return res.status(404).json({
         error: 'Диагностика не найдена',
       });
+    }
+    if (!req.user.permissions?.canEditAllDiagnostics && diagnostics[existingIndex].createdBy !== (req.user.login || req.user.moodleUserId || String(req.user.userId || ''))) {
+      return res.status(403).json({ error: 'Можно редактировать только свои диагностики' });
     }
 
     const diagnostic = sanitizeDiagnosticPayload(
@@ -2348,6 +2765,7 @@ app.put('/api/admin/diagnostics/:id', async (req, res) => {
 
     diagnostics[existingIndex] = diagnostic;
     await writeJsonArray(DIAGNOSTICS_JSON, diagnostics);
+    await syncDiagnosticAccess(diagnostic);
 
     res.json({
       ok: true,
@@ -2360,11 +2778,13 @@ app.put('/api/admin/diagnostics/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/admin/diagnostics/:id', async (req, res) => {
+app.delete('/api/admin/diagnostics/:id', requirePermission('canEditAllDiagnostics'), async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
-  const nextDiagnostics = diagnostics.filter((item) => item.id !== req.params.id);
+    const nextDiagnostics = diagnostics.filter((item) => item.id !== req.params.id);
 
-  await writeJsonArray(DIAGNOSTICS_JSON, nextDiagnostics);
+    await writeJsonArray(DIAGNOSTICS_JSON, nextDiagnostics);
+  await pool.query('DELETE FROM diagnostic_course_access WHERE diagnostic_id=$1', [req.params.id]);
+  await pool.query('DELETE FROM diagnostic_group_access WHERE diagnostic_id=$1', [req.params.id]);
 
   res.json({
     ok: true,
@@ -2372,12 +2792,14 @@ app.delete('/api/admin/diagnostics/:id', async (req, res) => {
   });
 });
 
-app.get('/api/admin/diagnostics/:id/results', async (req, res) => {
+app.get('/api/admin/diagnostics/:id/results', requirePermission('canViewResults'), async (req, res) => {
   const results = await readJsonArray(DIAGNOSTIC_RESULTS_JSON);
-  res.json(results.filter((result) => result.diagnosticId === req.params.id));
+  const grades = await pool.query('SELECT result_id,status,attempts,last_error,sent_at FROM lti_grade_results');
+  const byResult = new Map(grades.rows.map((grade) => [grade.result_id, grade]));
+  res.json(results.filter((result) => result.diagnosticId === req.params.id).map((result) => ({ ...result, moodleGrade: byResult.get(result.id) || null })));
 });
 
-app.patch('/api/admin/results/:id/review', async (req, res) => {
+app.patch('/api/admin/results/:id/review', requirePermission('canGradeResults'), async (req, res) => {
   try {
     const results = await readJsonArray(DIAGNOSTIC_RESULTS_JSON);
     const resultIndex = results.findIndex((result) => result.id === req.params.id);
@@ -2607,7 +3029,7 @@ app.post('/api/admin/backups/:fileName/restore', requireAdministrator, async (re
   }
 });
 
-app.get('/api/diagnostics/:id', async (req, res) => {
+app.get('/api/diagnostics/:id', requireAuth, async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
   const diagnostic = diagnostics.find((item) => item.id === req.params.id);
 
@@ -2616,6 +3038,7 @@ app.get('/api/diagnostics/:id', async (req, res) => {
       error: 'Диагностика не найдена',
     });
   }
+  if (!(await getDiagnosticAccess(diagnostic, req.user))) return res.status(403).json({ error: 'Нет доступа к диагностике' });
 
   const status = getDiagnosticStatus(diagnostic);
 
@@ -2636,7 +3059,7 @@ app.get('/api/diagnostics/:id', async (req, res) => {
   res.json(await buildDiagnosticPayload(diagnostic));
 });
 
-app.post('/api/diagnostics/:id/check-attempt', async (req, res) => {
+app.post('/api/diagnostics/:id/check-attempt', requireAuth, async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
   const diagnostic = diagnostics.find((item) => item.id === req.params.id);
 
@@ -2645,13 +3068,14 @@ app.post('/api/diagnostics/:id/check-attempt', async (req, res) => {
       error: 'Диагностика не найдена',
     });
   }
+  if (!(await getDiagnosticAccess(diagnostic, req.user))) return res.status(403).json({ error: 'Нет доступа к диагностике' });
 
-  const studentName = String(req.body.studentName || '').trim();
-  const group = String(req.body.group || '').trim();
+  const studentName = String(req.user.name || req.body.studentName || '').trim();
+  const group = String((req.user.groupIds || []).join(',') || req.body.group || 'Без группы').trim();
 
-  if (!studentName || !group) {
+  if (!studentName) {
     return res.status(400).json({
-      error: 'Укажите ФИО и группу',
+      error: 'Не удалось определить пользователя Moodle',
     });
   }
 
@@ -2678,9 +3102,9 @@ app.post('/api/diagnostics/:id/check-attempt', async (req, res) => {
   });
 });
 
-app.get('/api/diagnostics/:id/results/:resultId', async (req, res) => {
-  const studentName = String(req.query.studentName || '').trim();
-  const group = String(req.query.group || '').trim();
+app.get('/api/diagnostics/:id/results/:resultId', requireAuth, async (req, res) => {
+  const studentName = String(req.user.name || req.query.studentName || '').trim();
+  const group = String((req.user.groupIds || []).join(',') || req.query.group || 'Без группы').trim();
   const results = await readJsonArray(DIAGNOSTIC_RESULTS_JSON);
   const result = results.find((item) => (
     item.id === req.params.resultId &&
@@ -2709,7 +3133,7 @@ app.get('/api/diagnostics/:id/results/:resultId', async (req, res) => {
   });
 });
 
-app.post('/api/diagnostics/:id/submit', async (req, res) => {
+app.post('/api/diagnostics/:id/submit', requireAuth, async (req, res) => {
   try {
     const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
     const diagnostic = diagnostics.find((item) => item.id === req.params.id);
@@ -2719,6 +3143,7 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
         error: 'Диагностика не найдена',
       });
     }
+    if (!(await getDiagnosticAccess(diagnostic, req.user))) return res.status(403).json({ error: 'Нет доступа к диагностике' });
 
     if (getDiagnosticStatus(diagnostic) !== 'open') {
       return res.status(403).json({
@@ -2726,13 +3151,13 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
       });
     }
 
-    const studentName = String(req.body.studentName || '').trim();
-    const group = String(req.body.group || '').trim();
+    const studentName = String(req.user.name || req.body.studentName || '').trim();
+    const group = String((req.user.groupIds || []).join(',') || req.body.group || 'Без группы').trim();
     const submittedAnswers = Array.isArray(req.body.answers) ? req.body.answers : [];
 
-    if (!studentName || !group) {
+    if (!studentName) {
       return res.status(400).json({
-        error: 'Укажите ФИО и группу',
+        error: 'Не удалось определить пользователя Moodle',
       });
     }
 
@@ -2869,6 +3294,7 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
 
     results.push(result);
     await writeJsonArray(DIAGNOSTIC_RESULTS_JSON, results);
+    const moodleGrade = await queueAndSendGrade(result, req.user);
 
     res.json({
       ok: true,
@@ -2876,6 +3302,7 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
       score,
       total,
       percent,
+      moodleGradeStatus: moodleGrade?.status || null,
       reviewComment: result.reviewComment || '',
       answers: answers.map((answer) => ({
         questionId: answer.questionId,
@@ -2894,6 +3321,20 @@ app.post('/api/diagnostics/:id/submit', async (req, res) => {
   }
 });
 
+app.post('/api/admin/results/:id/resend-to-moodle', requirePermission('canSendGradesToMoodle'), async (req, res) => {
+  const queueItem = (await pool.query('SELECT * FROM lti_grade_results WHERE result_id=$1', [req.params.id])).rows[0];
+  if (!queueItem) return res.status(404).json({ error: 'Очередь отправки результата в Moodle не найдена' });
+  try {
+    const launch = (await pool.query('SELECT ags FROM lti_launches WHERE moodle_user_id=$1 AND course_id=$2 ORDER BY created_at DESC LIMIT 1', [queueItem.moodle_user_id, queueItem.course_id])).rows[0];
+    const session = launch ? { ags: launch.ags } : req.user;
+    await sendGradeToMoodle(queueItem, session);
+    return res.json({ ok: true, status: 'sent' });
+  } catch (error) {
+    await pool.query('UPDATE lti_grade_results SET status=$2,attempts=attempts+1,last_error=$3,updated_at=now() WHERE id=$1', [queueItem.id, 'failed', error.message]);
+    return res.status(502).json({ error: error.message });
+  }
+});
+
 app.get('/api/admin/jobs/:id', (req, res) => {
   const job = jobs.get(req.params.id);
 
@@ -2906,7 +3347,7 @@ app.get('/api/admin/jobs/:id', (req, res) => {
   res.json(job);
 });
 
-app.post('/api/admin/slides/import', async (req, res) => {
+app.post('/api/admin/slides/import', requirePermission('canUploadSlides'), async (req, res) => {
   try {
     const rawSlides = req.body?.slides;
 
@@ -2981,7 +3422,7 @@ app.post('/api/admin/slides/import', async (req, res) => {
   }
 });
 
-app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
+app.post('/api/admin/slides', requirePermission('canUploadSlides'), upload.single('slideFile'), async (req, res) => {
   const job = createJob('Файл получен. Подготовка к обработке...');
 
   res.json({
@@ -3001,6 +3442,11 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
       diagnosticSigns,
       selfCheckQuestions,
       source,
+      courseIds,
+      groupIds,
+      visibleForStudents,
+      visibleForResidents,
+      anonymizeForResidents,
     } = req.body;
 
     const slideId = slugify(id || title);
@@ -3077,6 +3523,12 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
       description: description || '',
       diagnosticSigns: parseDiagnosticSigns(diagnosticSigns),
       selfCheckQuestions: parseSelfCheckQuestions(selfCheckQuestions),
+      courseIds: typeof courseIds === 'string' ? JSON.parse(courseIds || '[]') : courseIds,
+      groupIds: typeof groupIds === 'string' ? JSON.parse(groupIds || '[]') : groupIds,
+      visibleForStudents: visibleForStudents !== 'false',
+      visibleForResidents: visibleForResidents !== 'false',
+      anonymizeForResidents: anonymizeForResidents !== 'false',
+      createdBy: req.user.login || req.user.moodleUserId || '',
     }, { strict: true });
 
     await saveSlideToDatabase(newSlide);
@@ -3103,7 +3555,7 @@ app.post('/api/admin/slides', upload.single('slideFile'), async (req, res) => {
   }
 });
 
-app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) => {
+app.put('/api/admin/slides/:id', requirePermission('canEditSlides'), upload.single('slideFile'), async (req, res) => {
   const job = createJob('Файл получен. Подготовка к редактированию...');
 
   res.json({
@@ -3124,6 +3576,11 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
       diagnosticSigns,
       selfCheckQuestions,
       source,
+      courseIds,
+      groupIds,
+      visibleForStudents,
+      visibleForResidents,
+      anonymizeForResidents,
     } = req.body;
 
     const slides = await readSlides();
@@ -3195,11 +3652,18 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
       description: description || '',
       diagnosticSigns: parseDiagnosticSigns(diagnosticSigns),
       selfCheckQuestions: parseSelfCheckQuestions(selfCheckQuestions),
+      courseIds: typeof courseIds === 'string' ? JSON.parse(courseIds || '[]') : courseIds,
+      groupIds: typeof groupIds === 'string' ? JSON.parse(groupIds || '[]') : groupIds,
+      visibleForStudents: visibleForStudents !== 'false',
+      visibleForResidents: visibleForResidents !== 'false',
+      anonymizeForResidents: anonymizeForResidents !== 'false',
+      updatedBy: req.user.login || req.user.moodleUserId || '',
     }, { strict: true });
 
     slides[existingIndex] = updatedSlide;
 
     await writeSlides(slides);
+    await syncSlideAccess(updatedSlide);
 
     updateJob(job.id, {
       status: 'done',
@@ -3223,7 +3687,7 @@ app.put('/api/admin/slides/:id', upload.single('slideFile'), async (req, res) =>
   }
 });
 
-app.delete('/api/admin/slides/:id', async (req, res) => {
+app.delete('/api/admin/slides/:id', requirePermission('canDeleteSlides'), async (req, res) => {
   try {
     const { id } = req.params;
 

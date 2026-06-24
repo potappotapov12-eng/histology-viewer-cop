@@ -611,114 +611,154 @@ const Sidebar = memo(function Sidebar({
   onLessonChange,
   onSystemChange,
   onStainChange,
+  onResetFilters,
   onSelectSlide,
 }) {
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const activeFiltersCount = [
+    selectedSystem !== ALL_SYSTEMS_OPTION,
+    selectedLesson !== ALL_LESSONS_OPTION,
+    selectedOrgan !== ALL_ORGANS_OPTION,
+    selectedStain !== ALL_STAINS_OPTION,
+  ].filter(Boolean).length;
+  const groupEntries = Object.entries(groupedSlides);
+
+  useEffect(() => {
+    if (groupEntries.length === 0) return;
+
+    setExpandedGroups((current) => {
+      const next = { ...current };
+      let changed = false;
+
+      groupEntries.forEach(([system], index) => {
+        if (next[system] === undefined) {
+          next[system] = index === 0;
+          changed = true;
+        }
+      });
+
+      const activeGroup = groupEntries.find(([, slides]) => slides.some((slide) => slide.id === selectedSlideId))?.[0];
+      if (activeGroup && !next[activeGroup]) {
+        next[activeGroup] = true;
+        changed = true;
+      }
+
+      return changed ? next : current;
+    });
+  }, [groupedSlides, selectedSlideId]);
+
+  const toggleGroup = useCallback((groupName) => {
+    setExpandedGroups((current) => ({
+      ...current,
+      [groupName]: !current[groupName],
+    }));
+  }, []);
+
   return (
     <aside className="sidebar" aria-label="Каталог препаратов">
-      <div className="brand">
-        <img src="/logo-ugmu.png" alt="УГМУ" className="brandLogo" />
-        <div>
-          <h1>Гистологический атлас</h1>
-          <p>УГМУ</p>
+      <div className="sidebarTop">
+        <div className="brand">
+          <img src="/logo-ugmu.png" alt="УГМУ" className="brandLogo" />
+          <div>
+            <h1>Гистологический атлас</h1>
+            <p>УГМУ</p>
+          </div>
         </div>
-      </div>
 
-      <div className="searchBlock">
-        <label htmlFor="search">Поиск препарата</label>
-        <input
-          id="search"
-          type="search"
-          placeholder="ID, диагноз, орган, окраска..."
-          value={searchQuery}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
-      </div>
+        <div className="searchBlock">
+          <label htmlFor="search">Поиск препарата</label>
+          <input
+            id="search"
+            type="search"
+            placeholder="ID, диагноз, орган, окраска..."
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </div>
 
-      <div className="filterBlock">
-        <label htmlFor="systemFilter">Раздел</label>
-        <select
-          id="systemFilter"
-          value={selectedSystem}
-          onChange={(event) => onSystemChange(event.target.value)}
+        <button
+          type="button"
+          className={activeFiltersCount > 0 ? 'filtersToggle active' : 'filtersToggle'}
+          onClick={() => setIsFiltersOpen((current) => !current)}
+          aria-expanded={isFiltersOpen}
+          aria-controls="filters-panel"
         >
-          {systems.map((system) => (
-            <option key={system} value={system}>
-              {system}
-            </option>
-          ))}
-        </select>
+          <span>Фильтры{activeFiltersCount > 0 ? ` • ${activeFiltersCount}` : ''}</span>
+          <span className="chevron" aria-hidden="true">{isFiltersOpen ? '⌃' : '⌄'}</span>
+        </button>
+
+        {isFiltersOpen && (
+          <div className="filtersPanel" id="filters-panel">
+            <div className="filterBlock">
+              <label htmlFor="systemFilter">Раздел</label>
+              <select id="systemFilter" value={selectedSystem} onChange={(event) => onSystemChange(event.target.value)}>
+                {systems.map((system) => <option key={system} value={system}>{system}</option>)}
+              </select>
+            </div>
+
+            <div className="filterBlock">
+              <label htmlFor="lessonFilter">Занятие</label>
+              <select id="lessonFilter" value={selectedLesson} onChange={(event) => onLessonChange(event.target.value)}>
+                {lessons.map((lesson) => <option key={lesson} value={lesson}>{lesson}</option>)}
+              </select>
+            </div>
+
+            <div className="filterBlock">
+              <label htmlFor="organFilter">Орган</label>
+              <select id="organFilter" value={selectedOrgan} onChange={(event) => onOrganChange(event.target.value)}>
+                {organs.map((organ) => <option key={organ} value={organ}>{organ}</option>)}
+              </select>
+            </div>
+
+            <div className="filterBlock">
+              <label htmlFor="stainFilter">Окраска</label>
+              <select id="stainFilter" value={selectedStain} onChange={(event) => onStainChange(event.target.value)}>
+                {stains.map((stain) => <option key={stain} value={stain}>{stain}</option>)}
+              </select>
+            </div>
+
+            {activeFiltersCount > 0 && <button type="button" className="resetFilters" onClick={onResetFilters}>Сбросить фильтры</button>}
+          </div>
+        )}
       </div>
 
-      <div className="filterBlock">
-        <label htmlFor="lessonFilter">Занятие</label>
-        <select
-          id="lessonFilter"
-          value={selectedLesson}
-          onChange={(event) => onLessonChange(event.target.value)}
-        >
-          {lessons.map((lesson) => (
-            <option key={lesson} value={lesson}>
-              {lesson}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div className="slidesListScroll">
+        <div className="slideCounter">
+          Найдено препаратов: <strong>{filteredCount}</strong>
+        </div>
 
-      <div className="filterBlock">
-        <label htmlFor="organFilter">Орган</label>
-        <select
-          id="organFilter"
-          value={selectedOrgan}
-          onChange={(event) => onOrganChange(event.target.value)}
-        >
-          {organs.map((organ) => (
-            <option key={organ} value={organ}>
-              {organ}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="filterBlock">
-        <label htmlFor="stainFilter">Окраска</label>
-        <select
-          id="stainFilter"
-          value={selectedStain}
-          onChange={(event) => onStainChange(event.target.value)}
-        >
-          {stains.map((stain) => (
-            <option key={stain} value={stain}>
-              {stain}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="slideCounter">
-        Найдено препаратов: <strong>{filteredCount}</strong>
-      </div>
-
-      <div className="slideList">
-        {Object.entries(groupedSlides).map(([system, systemSlides]) => (
+        <div className="slideList">
+        {groupEntries.map(([system, systemSlides]) => (
           <div key={system} className="systemGroup">
-            <div className="systemTitle">{system}</div>
+            <button
+              type="button"
+              className="systemTitle"
+              onClick={() => toggleGroup(system)}
+              aria-expanded={Boolean(expandedGroups[system])}
+              aria-controls={`slide-group-${system}`}
+            >
+              <span>{system} <small>({systemSlides.length})</small></span>
+              <span className="chevron" aria-hidden="true">{expandedGroups[system] ? '⌃' : '⌄'}</span>
+            </button>
 
-            {systemSlides.map((slide) => (
+            {expandedGroups[system] && <div id={`slide-group-${system}`} className="slideGroupItems">{systemSlides.map((slide) => (
               <SlideCard
                 key={slide.id}
                 slide={slide}
                 isActive={selectedSlideId === slide.id}
                 onSelect={onSelectSlide}
               />
-            ))}
+            ))}</div>}
           </div>
         ))}
 
         {filteredCount === 0 && (
           <div className="emptyState">
-            Ничего не найдено. Попробуй изменить поисковый запрос.
+            Препараты не найдены. Попробуйте изменить поисковый запрос или фильтры.
           </div>
         )}
+        </div>
       </div>
     </aside>
   );
@@ -952,6 +992,10 @@ function ErrorApp({ message }) {
   );
 }
 
+function MoodleLoginRequired() {
+  return <div className="emptyApp"><div className="emptyCard"><h1>Откройте атлас через Moodle</h1><p>Войдите в Moodle и откройте внешний инструмент «Гистологический атлас» из нужного курса.</p></div></div>;
+}
+
 function ViewerApp() {
   const viewerElementRef = useRef(null);
   const viewerRef = useRef(null);
@@ -973,6 +1017,13 @@ function ViewerApp() {
   const [viewerLoadError, setViewerLoadError] = useState('');
   const [viewerStatus, setViewerStatus] = useState('idle');
   const [viewerTileStats, setViewerTileStats] = useState({ loaded: 0, failed: 0 });
+
+  const resetFilters = useCallback(() => {
+    setSelectedOrgan(ALL_ORGANS_OPTION);
+    setSelectedLesson(ALL_LESSONS_OPTION);
+    setSelectedSystem(ALL_SYSTEMS_OPTION);
+    setSelectedStain(ALL_STAINS_OPTION);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1291,6 +1342,7 @@ function ViewerApp() {
         onLessonChange={setSelectedLesson}
         onSystemChange={setSelectedSystem}
         onStainChange={setSelectedStain}
+        onResetFilters={resetFilters}
         onSelectSlide={setSelectedSlide}
       />
 
@@ -2078,10 +2130,19 @@ function App() {
     );
   }
 
-  if (window.location.pathname.startsWith('/diagnostics/')) {
-    return <DiagnosticPage />;
-  }
+  return <LtiProtectedApp />;
+}
 
+function LtiProtectedApp() {
+  const [state, setState] = useState({ loading: true, user: null });
+  useEffect(() => {
+    fetch('/api/me').then((response) => response.ok ? response.json() : { authenticated: false })
+      .then((user) => setState({ loading: false, user: user.authenticated ? user : null }))
+      .catch(() => setState({ loading: false, user: null }));
+  }, []);
+  if (state.loading) return <LoadingApp />;
+  if (!state.user) return <MoodleLoginRequired />;
+  if (window.location.pathname.startsWith('/diagnostics/')) return <DiagnosticPage />;
   return <ViewerApp />;
 }
 
