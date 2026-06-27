@@ -622,7 +622,7 @@ const Sidebar = memo(function Sidebar({
     selectedOrgan !== ALL_ORGANS_OPTION,
     selectedStain !== ALL_STAINS_OPTION,
   ].filter(Boolean).length;
-  const groupEntries = Object.entries(groupedSlides);
+  const groupEntries = useMemo(() => Object.entries(groupedSlides), [groupedSlides]);
 
   useEffect(() => {
     if (groupEntries.length === 0) return;
@@ -646,7 +646,7 @@ const Sidebar = memo(function Sidebar({
 
       return changed ? next : current;
     });
-  }, [groupedSlides, selectedSlideId]);
+  }, [groupEntries, selectedSlideId]);
 
   const toggleGroup = useCallback((groupName) => {
     setExpandedGroups((current) => ({
@@ -2137,7 +2137,10 @@ function LtiProtectedApp() {
   const [state, setState] = useState({ loading: true, user: null });
   useEffect(() => {
     fetch('/api/me').then((response) => response.ok ? response.json() : { authenticated: false })
-      .then((user) => setState({ loading: false, user: user.authenticated ? user : null }))
+      .then((user) => setState({
+        loading: false,
+        user: user.authenticated || user.permissions?.canViewSlides ? user : null,
+      }))
       .catch(() => setState({ loading: false, user: null }));
   }, []);
   if (state.loading) return <LoadingApp />;

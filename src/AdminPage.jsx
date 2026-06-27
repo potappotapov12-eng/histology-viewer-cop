@@ -42,6 +42,46 @@ const DIAGNOSTIC_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
   hourCycle: 'h23',
 });
 
+const ROLE_LABELS = {
+  admin: 'Администратор',
+  teacher_full: 'Преподаватель с полным доступом',
+  teacher_limited: 'Преподаватель с ограниченным доступом',
+  resident: 'Ординатор',
+  student: 'Студент',
+};
+
+const USER_ROLE_OPTIONS = ['teacher_full', 'teacher_limited', 'resident', 'student'];
+
+const PERMISSION_LABELS = {
+  canCreateSlideCards: 'Создание карточек препаратов',
+  canEditSlideCards: 'Редактирование карточек препаратов',
+  canDeleteSlideCards: 'Удаление карточек препаратов',
+  canUploadSlides: 'Загрузка препаратов',
+  canEditSlides: 'Редактирование препаратов',
+  canDeleteSlides: 'Удаление препаратов',
+  canCreateDiagnostics: 'Создание диагностик',
+  canEditOwnDiagnostics: 'Редактирование своих диагностик',
+  canEditAllDiagnostics: 'Редактирование всех диагностик',
+  canDeleteDiagnostics: 'Удаление диагностик',
+  canViewResults: 'Просмотр результатов',
+  canGradeResults: 'Проверка результатов',
+};
+
+const PERMISSION_KEYS = Object.keys(PERMISSION_LABELS);
+
+function createEmptyUserForm() {
+  return {
+    id: null,
+    login: '',
+    email: '',
+    fullName: '',
+    password: '',
+    role: 'teacher_limited',
+    isActive: true,
+    permissionOverrides: {},
+  };
+}
+
 const IMPORT_FIELD_ALIASES = {
   id: 'id',
   идентификатор: 'id',
@@ -1465,10 +1505,9 @@ function AdminDashboard({ onLogout, role }) {
   const [previewSlideId, setPreviewSlideId] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [teachers, setTeachers] = useState([]);
-  const [teacherLogin, setTeacherLogin] = useState('');
-  const [teacherPassword, setTeacherPassword] = useState('');
-  const [teachersStatus, setTeachersStatus] = useState('');
+  const [users, setUsers] = useState([]);
+  const [userForm, setUserForm] = useState(createEmptyUserForm);
+  const [usersStatus, setUsersStatus] = useState('');
 
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
@@ -1619,11 +1658,11 @@ function AdminDashboard({ onLogout, role }) {
     setBackups(Array.isArray(data) ? data : []);
   };
 
-  const loadTeachers = async () => {
-    const response = await fetch('/api/admin/teachers');
+  const loadUsers = async () => {
+    const response = await fetch('/api/admin/users');
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Не удалось загрузить преподавателей');
-    setTeachers(Array.isArray(data) ? data : []);
+    if (!response.ok) throw new Error(data.error || 'Не удалось загрузить пользователей');
+    setUsers(Array.isArray(data) ? data : []);
   };
 
   useEffect(() => {
@@ -1637,7 +1676,7 @@ function AdminDashboard({ onLogout, role }) {
       loadBackups().catch((error) => {
         setBackupStatus(`Ошибка: ${error.message}`);
       });
-      loadTeachers().catch((error) => setTeachersStatus(`Ошибка: ${error.message}`));
+      loadUsers().catch((error) => setUsersStatus(`Ошибка: ${error.message}`));
     }
   }, [role]);
 
@@ -1726,46 +1765,98 @@ function AdminDashboard({ onLogout, role }) {
     });
   };
 
-  const createTeacher = async (event) => {
+  const updateUserForm = (field, value) => {
+    setUserForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const toggleUserPermission = (permission) => {
+    setUserForm((current) => ({
+      ...current,
+      permissionOverrides: {
+        ...current.permissionOverrides,
+        [permission]: !current.permissionOverrides?.[permission],
+      },
+    }));
+  };
+
+  const resetUserForm = () => {
+    setUserForm(createEmptyUserForm());
+  };
+
+  const editUser = (user) => {
+    setUserForm({
+      id: user.id,
+      login: user.login || '',
+      email: user.email || '',
+      fullName: user.fullName || user.name || '',
+      password: '',
+      role: user.role || 'teacher_limited',
+      isActive: user.isActive !== false,
+      permissionOverrides: user.permissionOverrides || {},
+    });
+  };
+
+  const saveUser = async (event) => {
     event.preventDefault();
-    setTeachersStatus('Создание учётной записи...');
+    setUsersStatus(userForm.id ? 'Сохранение пользователя...' : 'Создание пользователя...');
     try {
-      const response = await fetch('/api/admin/teachers', {
-        method: 'POST',
+      const payload = {
+        login: userForm.login,
+        email: userForm.email,
+        fullName: userForm.fullName,
+        password: userForm.password,
+        role: userForm.role,
+        isActive: userForm.isActive,
+        permissionOverrides: userForm.permissionOverrides,
+      };
+      const response = await fetch(userForm.id ? `/api/admin/users/${userForm.id}` : '/api/admin/users', {
+        method: userForm.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login: teacherLogin, password: teacherPassword }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Не удалось создать преподавателя');
-      setTeacherLogin('');
-      setTeacherPassword('');
-      setTeachersStatus(`Учётная запись ${data.login} создана`);
-      await loadTeachers();
+      if (!response.ok) throw new Error(data.error || 'Не удалось сохранить пользователя');
+      setUsersStatus(userForm.id ? `Пользователь ${data.login} сохранён` : `Пользователь ${data.login} создан`);
+      resetUserForm();
+      await loadUsers();
     } catch (error) {
-      setTeachersStatus(`Ошибка: ${error.message}`);
+      setUsersStatus(`Ошибка: ${error.message}`);
     }
   };
 
-  const changeTeacherPassword = async (login) => {
-    const password = window.prompt(`Новый пароль для ${login}:`);
+  const changeUserPassword = async (user) => {
+    const password = window.prompt(`Новый пароль для ${user.login}:`);
     if (!password) return;
-    const response = await fetch(`/api/admin/teachers/${encodeURIComponent(login)}/password`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+    const response = await fetch(`/api/admin/users/${user.id}/password`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
     });
     const data = await response.json();
-    setTeachersStatus(response.ok ? `Пароль ${login} изменён` : `Ошибка: ${data.error || 'не удалось изменить пароль'}`);
+    setUsersStatus(response.ok ? `Пароль ${user.login} изменён` : `Ошибка: ${data.error || 'не удалось изменить пароль'}`);
   };
 
-  const deleteTeacher = async (login) => {
-    if (!window.confirm(`Удалить учётную запись ${login}?`)) return;
-    const response = await fetch(`/api/admin/teachers/${encodeURIComponent(login)}`, { method: 'DELETE' });
+  const toggleUserStatus = async (user) => {
+    const response = await fetch(`/api/admin/users/${user.id}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !user.isActive }),
+    });
     const data = await response.json();
     if (!response.ok) {
-      setTeachersStatus(`Ошибка: ${data.error || 'не удалось удалить преподавателя'}`);
+      setUsersStatus(`Ошибка: ${data.error || 'не удалось изменить статус'}`);
       return;
     }
-    setTeachersStatus(`Учётная запись ${login} удалена`);
-    await loadTeachers();
+    setUsersStatus(data.isActive ? `Пользователь ${data.login} активен` : `Пользователь ${data.login} заблокирован`);
+    await loadUsers();
+  };
+
+  const deleteUser = async (user) => {
+    if (!window.confirm(`Удалить или деактивировать пользователя ${user.login}?`)) return;
+    const response = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) {
+      setUsersStatus(`Ошибка: ${data.error || 'не удалось удалить пользователя'}`);
+      return;
+    }
+    setUsersStatus(`Пользователь ${user.login} деактивирован`);
+    await loadUsers();
   };
 
   const updateField = (field, value) => {
@@ -2570,7 +2661,7 @@ function AdminDashboard({ onLogout, role }) {
           className={activeAdminTab === 'teachers' ? 'active' : ''}
           onClick={() => setActiveAdminTab('teachers')}
         >
-          Преподаватели
+          Пользователи
         </button>}
       </nav>
 
@@ -3959,36 +4050,81 @@ function AdminDashboard({ onLogout, role }) {
           <section className="adminCard teachersCard">
             <div className="adminCardHeader">
               <div>
-                <h2>Учётные записи преподавателей</h2>
-                <p>Пароли хранятся на сервере в виде хешей и не отображаются.</p>
+                <h2>Пользователи</h2>
+                <p>Локальные пользователи, роли и индивидуальные права доступа.</p>
               </div>
             </div>
-            <form className="adminForm" onSubmit={createTeacher}>
+
+            <form className="adminForm" onSubmit={saveUser}>
               <label>
                 Логин
-                <input value={teacherLogin} onChange={(event) => setTeacherLogin(event.target.value)} placeholder="ivanov" required />
+                <input value={userForm.login} onChange={(event) => updateUserForm('login', event.target.value)} placeholder="ivanov" required disabled={Boolean(userForm.id)} />
               </label>
               <label>
-                Пароль
-                <input type="password" value={teacherPassword} onChange={(event) => setTeacherPassword(event.target.value)} minLength="8" required />
+                ФИО
+                <input value={userForm.fullName} onChange={(event) => updateUserForm('fullName', event.target.value)} placeholder="Иванов Иван Иванович" />
               </label>
-              <button type="submit" className="adminPrimarySubmit">Создать преподавателя</button>
+              <label>
+                Email
+                <input type="email" value={userForm.email} onChange={(event) => updateUserForm('email', event.target.value)} placeholder="teacher@example.edu" />
+              </label>
+              <label>
+                Роль
+                <select value={userForm.role} onChange={(event) => updateUserForm('role', event.target.value)}>
+                  {USER_ROLE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{ROLE_LABELS[option]}</option>
+                  ))}
+                </select>
+              </label>
+              {!userForm.id && (
+                <label>
+                  Пароль
+                  <input type="password" value={userForm.password} onChange={(event) => updateUserForm('password', event.target.value)} minLength="8" required />
+                </label>
+              )}
+              <label className="adminCheckboxLabel">
+                <input type="checkbox" checked={userForm.isActive} onChange={(event) => updateUserForm('isActive', event.target.checked)} />
+                Активен
+              </label>
+
+              <div className="permissionGrid">
+                {PERMISSION_KEYS.map((permission) => (
+                  <label className="adminCheckboxLabel" key={permission}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(userForm.permissionOverrides?.[permission])}
+                      onChange={() => toggleUserPermission(permission)}
+                    />
+                    {PERMISSION_LABELS[permission]}
+                  </label>
+                ))}
+              </div>
+
+              <div className="adminFormActions">
+                <button type="submit" className="adminPrimarySubmit">{userForm.id ? 'Сохранить пользователя' : 'Создать пользователя'}</button>
+                {userForm.id && <button type="button" className="adminSecondaryButton" onClick={resetUserForm}>Отменить</button>}
+              </div>
             </form>
-            {teachersStatus && <p className="adminStatus">{teachersStatus}</p>}
+
+            {usersStatus && <p className="adminStatus">{usersStatus}</p>}
             <div className="adminSlideList">
-              {teachers.map((teacher) => (
-                <div className="adminSlideItem" key={teacher.login}>
+              {users.map((user) => (
+                <div className="adminSlideItem" key={user.id}>
                   <div>
-                    <strong>{teacher.login}</strong>
-                    <span>Создан: {new Date(teacher.createdAt).toLocaleString('ru-RU')}</span>
+                    <strong>#{user.id} · {user.fullName || user.name || user.login}</strong>
+                    <span>{user.login} · {user.email || 'email не указан'} · {ROLE_LABELS[user.role] || user.role}</span>
+                    <span>{user.isActive ? 'Активен' : 'Заблокирован'} · создан: {new Date(user.createdAt).toLocaleString('ru-RU')}</span>
+                    <span>Последний вход: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('ru-RU') : 'нет данных'}</span>
                   </div>
                   <div className="adminSlideActions">
-                    <button type="button" className="adminSecondaryButton" onClick={() => changeTeacherPassword(teacher.login)}>Сменить пароль</button>
-                    <button type="button" className="adminDangerButton" onClick={() => deleteTeacher(teacher.login)}>Удалить</button>
+                    <button type="button" className="adminSecondaryButton" onClick={() => editUser(user)}>Редактировать</button>
+                    <button type="button" className="adminSecondaryButton" onClick={() => changeUserPassword(user)}>Сменить пароль</button>
+                    <button type="button" className="adminSecondaryButton" onClick={() => toggleUserStatus(user)}>{user.isActive ? 'Заблокировать' : 'Активировать'}</button>
+                    <button type="button" className="adminDangerButton" onClick={() => deleteUser(user)}>Удалить</button>
                   </div>
                 </div>
               ))}
-              {teachers.length === 0 && <p className="adminHint">Учётных записей преподавателей пока нет.</p>}
+              {users.length === 0 && <p className="adminHint">Пользователи пока не созданы.</p>}
             </div>
           </section>
         )}

@@ -55,11 +55,14 @@ const ADMIN_SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
   crypto.randomBytes(32).toString('hex');
 const ADMIN_SESSION_COOKIE = 'histology_admin_session';
+const AUTH_MODE = ['local', 'moodle_lti'].includes(process.env.AUTH_MODE)
+  ? process.env.AUTH_MODE
+  : 'local';
+const ENABLE_MOODLE_LTI = process.env.ENABLE_MOODLE_LTI === 'true' || AUTH_MODE === 'moodle_lti';
 const LTI_SESSION_COOKIE = 'histology_lti_session';
 const LTI_SESSION_SECRET = process.env.LTI_SESSION_SECRET || ADMIN_SESSION_SECRET;
 const LTI_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const LTI_COOKIE_SECURE = process.env.LTI_COOKIE_SECURE === 'true';
-const LTI_TOOL_NAME = process.env.LTI_TOOL_NAME || 'Гистологический атлас';
 const LTI_PRIVATE_KEY = process.env.LTI_PRIVATE_KEY || '';
 const LTI_PUBLIC_KEY = process.env.LTI_PUBLIC_KEY || '';
 const LTI_KEY_ID = process.env.LTI_KEY_ID || 'histology-viewer-lti-key';
@@ -312,7 +315,7 @@ function getSessionRole(token) {
   const [role, login, expiresAtRaw, signature] = String(token || '').split('.');
   const expiresAt = Number(expiresAtRaw);
 
-  if (!['admin', 'teacher', 'teacher_full', 'teacher_limited'].includes(role) || !/^[a-z0-9_-]{3,64}$/.test(login) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
+  if (!['admin', 'teacher', 'teacher_full', 'teacher_limited', 'resident', 'student'].includes(role) || !/^[a-z0-9_-]{3,64}$/.test(login) || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) {
     return null;
   }
 
@@ -327,14 +330,31 @@ function getSessionRole(token) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: true, canManageLti: true, canSendGradesToMoodle: true },
-  teacher_full: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
-  teacher_limited: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: false, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
-  resident: { canViewSlides: true, canViewSlideCards: false, canViewSlideDescriptions: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
-  student: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageLti: false, canSendGradesToMoodle: false },
+  admin: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: true, canEditSlideCards: true, canDeleteSlideCards: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canDeleteDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: true, canManageUsers: true, canManageRoles: true, canManageMoodle: true, canManageLti: true, canSendGradesToMoodle: true },
+  teacher_full: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: true, canEditSlideCards: true, canDeleteSlideCards: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canDeleteDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
+  teacher_limited: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: false, canEditSlideCards: false, canDeleteSlideCards: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: false, canDeleteDiagnostics: false, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
+  resident: { canViewSlides: true, canViewSlideCards: false, canViewSlideDescriptions: false, canCreateSlideCards: false, canEditSlideCards: false, canDeleteSlideCards: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canDeleteDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
+  student: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: false, canEditSlideCards: false, canDeleteSlideCards: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canDeleteDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
 };
 
-function permissionsForRole(role) { return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.student; }
+const USER_ROLES = Object.keys(ROLE_PERMISSIONS);
+function normalizeRole(role, fallback = 'student') {
+  return USER_ROLES.includes(role) ? role : fallback;
+}
+function normalizePermissionOverrides(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.keys(ROLE_PERMISSIONS.admin)
+      .filter((key) => typeof value[key] === 'boolean')
+      .map((key) => [key, value[key]])
+  );
+}
+function permissionsForRole(role, overrides = {}) {
+  return {
+    ...(ROLE_PERMISSIONS[normalizeRole(role)] || ROLE_PERMISSIONS.student),
+    ...normalizePermissionOverrides(overrides),
+  };
+}
 const DEV_AUTH_ENABLED = process.env.NODE_ENV !== 'production' && process.env.DEV_AUTH_BYPASS === 'true';
 const DEV_AUTH_ROLE = Object.hasOwn(ROLE_PERMISSIONS, process.env.DEV_AUTH_ROLE)
   ? process.env.DEV_AUTH_ROLE
@@ -405,26 +425,6 @@ function isAdminAuthenticated(req) {
   return getSessionRole(cookies[ADMIN_SESSION_COOKIE]);
 }
 
-function requireAdmin(req, res, next) {
-  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD && TEACHER_ACCOUNTS.length === 0) {
-    return res.status(503).json({
-      error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
-    });
-  }
-
-  const session = isAdminAuthenticated(req);
-  if (!session) {
-    return res.status(401).json({
-      error: 'Требуется вход администратора',
-    });
-  }
-
-  req.adminRole = session.role;
-  req.adminLogin = session.login;
-
-  return next();
-}
-
 function requireAdministrator(req, res, next) {
   if ((req.user?.role || req.adminRole) !== 'admin') return res.status(403).json({ error: 'Эта операция доступна только администратору' });
   return next();
@@ -457,33 +457,47 @@ function setLtiSessionCookie(res, user) {
   if (LTI_COOKIE_SECURE) options.push('Secure');
   res.setHeader('Set-Cookie', `${LTI_SESSION_COOKIE}=${createLtiSessionToken(user)}; ${options.join('; ')}`);
 }
-function requireAuth(req, res, next) {
-  const devUser = getDevUser();
-  if (devUser) { req.user = devUser; return next(); }
-  const lti = getLtiSession(req);
-  if (lti) { req.user = lti; return next(); }
-  const admin = isAdminAuthenticated(req);
-  if (admin) {
-    req.user = { authProvider: 'local_admin', role: admin.role === 'teacher' ? 'teacher_full' : admin.role, login: admin.login, permissions: permissionsForRole(admin.role === 'teacher' ? 'teacher_full' : admin.role), courseIds: [], groupIds: [] };
-    return next();
+async function requireAuth(req, res, next) {
+  try {
+    const user = await getSessionUser(req);
+    if (user) { req.user = user; return next(); }
+
+    if (!ENABLE_MOODLE_LTI) {
+      req.user = getLocalGuestUser();
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Требуется авторизация через Moodle LTI', authenticated: false });
+  } catch (error) {
+    return next(error);
   }
-  return res.status(401).json({ error: 'Требуется авторизация через Moodle LTI', authenticated: false });
+}
+async function requireAdminAreaAuth(req, res, next) {
+  try {
+    const user = await getSessionUser(req);
+    if (!user) return res.status(401).json({ error: 'Требуется вход в админку', authenticated: false });
+    req.user = user;
+    return requireUserActive(req, res, next);
+  } catch (error) {
+    return next(error);
+  }
 }
 function requirePermission(permission) {
   return (req, res, next) => requireAuth(req, res, () => req.user.permissions?.[permission]
     ? next()
     : res.status(403).json({ error: `Недостаточно прав: ${permission}` }));
 }
-function requireCourseAccess(courseId) {
-  return (req, res, next) => requireAuth(req, res, () => {
-    if (req.user.role === 'admin' || !courseId || req.user.courseIds?.map(String).includes(String(courseId))) return next();
-    return res.status(403).json({ error: 'Нет доступа к курсу' });
-  });
+function requireUserManagement(req, res, next) {
+  return req.user?.permissions?.canManageUsers || req.user?.permissions?.canManageTeachers
+    ? next()
+    : res.status(403).json({ error: 'Недостаточно прав для управления пользователями' });
 }
 function maskSlideForResident(slide, index) {
-  return { id: slide.id, title: `Препарат ${index + 1}`, description: '', diagnosis: '', diagnosticSigns: [], selfCheckQuestions: [], viewerOnly: true, source: slide.source, dziUrl: slide.source };
+  const title = `Препарат ${index + 1}`;
+  return { id: slide.id, title, displayTitle: title, description: '', diagnosis: '', diagnosticSigns: [], selfCheckQuestions: [], organ: '', stain: slide.stain || '', system: slide.system || '', viewerOnly: true, source: slide.source, dziUrl: slide.dziUrl || slide.source };
 }
 async function getSlideAccess(slide, user) {
+  if (!ENABLE_MOODLE_LTI && user.authProvider === 'local') return true;
   if (user.role === 'admin' || user.role === 'teacher_full') return true;
   if (user.role === 'teacher_limited') return true;
   if (user.role === 'resident' && slide.visibleForResidents === false) return false;
@@ -507,6 +521,7 @@ async function requireSlideAccess(slideId) {
   return slide;
 }
 async function getDiagnosticAccess(diagnostic, user) {
+  if (!ENABLE_MOODLE_LTI && user.authProvider === 'local') return true;
   if (user.role === 'resident') return false;
   if (['admin', 'teacher_full', 'teacher_limited'].includes(user.role)) return true;
   if (user.authProvider === 'dev') return true;
@@ -518,14 +533,6 @@ async function getDiagnosticAccess(diagnostic, user) {
   if (!courseIds.length && !groupIds.length) return true;
   return (!courseIds.length || courseIds.some((id) => user.courseIds?.map(String).includes(id))) && (!groupIds.length || groupIds.some((id) => user.groupIds?.map(String).includes(id)));
 }
-function requireDiagnosticAccess(diagnosticId) {
-  return async (req, res, next) => {
-    const diagnostic = (await readJsonArray(DIAGNOSTICS_JSON)).find((item) => item.id === diagnosticId);
-    if (!diagnostic || !(await getDiagnosticAccess(diagnostic, req.user))) return res.status(403).json({ error: 'Нет доступа к диагностике' });
-    req.diagnostic = diagnostic; return next();
-  };
-}
-
 function isAdminPasswordValid(value) {
   if (!ADMIN_PASSWORD) return false;
 
@@ -606,6 +613,128 @@ async function findStoredTeacherAccount(login) {
   return rows[0] || null;
 }
 
+function normalizeOptionalEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  if (!email) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Некорректный email');
+  return email;
+}
+
+function normalizeFullName(value) {
+  return String(value || '').trim();
+}
+
+function userRowToApi(row) {
+  const permissionOverrides = normalizePermissionOverrides(row.permission_overrides || {});
+  return {
+    id: row.id,
+    login: row.login,
+    email: row.email || '',
+    fullName: row.full_name || '',
+    name: row.full_name || row.login,
+    role: normalizeRole(row.role),
+    permissionOverrides,
+    permissions: permissionsForRole(row.role, permissionOverrides),
+    isActive: row.is_active,
+    authProvider: row.auth_provider || 'local',
+    moodleUserId: row.moodle_user_id || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastLoginAt: row.last_login_at,
+  };
+}
+
+async function findUserByLogin(login) {
+  const { rows } = await pool.query('SELECT * FROM users WHERE lower(login) = lower($1) AND deleted_at IS NULL', [login]);
+  return rows[0] || null;
+}
+
+async function findUserById(id) {
+  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+  return rows[0] || null;
+}
+
+async function requireUserActive(req, res, next) {
+  if (req.user?.isActive === false) return res.status(403).json({ error: 'Учётная запись заблокирована' });
+  return next();
+}
+
+async function listUsers() {
+  const { rows } = await pool.query(
+    `SELECT id, login, email, full_name, role, permission_overrides, is_active, auth_provider, moodle_user_id, created_at, updated_at, last_login_at
+     FROM users
+     WHERE deleted_at IS NULL
+     ORDER BY created_at DESC, id DESC`
+  );
+  return rows.map(userRowToApi);
+}
+
+async function userFromStoredRow(row) {
+  const apiUser = userRowToApi(row);
+  return {
+    authProvider: apiUser.authProvider,
+    id: apiUser.id,
+    userId: apiUser.id,
+    login: apiUser.login,
+    name: apiUser.name,
+    email: apiUser.email,
+    role: apiUser.role,
+    permissions: apiUser.permissions,
+    permissionOverrides: apiUser.permissionOverrides,
+    isActive: apiUser.isActive,
+    moodleUserId: apiUser.moodleUserId,
+    courseIds: [],
+    groupIds: [],
+    courseExternalIds: [],
+  };
+}
+
+async function getSessionUser(req) {
+  const devUser = getDevUser();
+  if (devUser) return devUser;
+
+  if (ENABLE_MOODLE_LTI) {
+    const lti = getLtiSession(req);
+    if (lti) return lti;
+  }
+
+  const session = isAdminAuthenticated(req);
+  if (!session) return null;
+
+  if (session.role === 'admin' && session.login === ADMIN_LOGIN) {
+    return { authProvider: 'local_admin', role: 'admin', login: session.login, name: session.login, permissions: permissionsForRole('admin'), courseIds: [], groupIds: [], courseExternalIds: [], isActive: true };
+  }
+
+  const storedUser = await findUserByLogin(session.login);
+  if (storedUser?.is_active) return userFromStoredRow(storedUser);
+
+  const storedTeacher = await findStoredTeacherAccount(session.login);
+  if (storedTeacher?.active) {
+    const role = normalizeRole(storedTeacher.role, 'teacher_full');
+    return { authProvider: 'local', role, login: storedTeacher.login, name: storedTeacher.login, permissions: permissionsForRole(role), courseIds: storedTeacher.course_ids || [], groupIds: storedTeacher.group_ids || [], courseExternalIds: [], isActive: true };
+  }
+
+  return null;
+}
+
+function getLocalGuestUser() {
+  return {
+    authenticated: false,
+    authProvider: 'local',
+    role: 'guest',
+    name: '',
+    permissions: {
+      canViewSlides: true,
+      canViewSlideCards: true,
+      canViewSlideDescriptions: true,
+    },
+    courseIds: [],
+    groupIds: [],
+    courseExternalIds: [],
+    isActive: true,
+  };
+}
+
 await fs.mkdir(DATA_DIR, { recursive: true });
 await fs.mkdir(BACKUP_DIR, { recursive: true });
 await fs.mkdir(UPLOAD_LOG_DIR, { recursive: true });
@@ -626,8 +755,9 @@ app.use(
   '/slides',
   async (req, res, next) => {
     try {
+      if (!ENABLE_MOODLE_LTI) return next();
       const slideId = String(req.path).match(/^\/([^/_./]+)(?:\.dzi|_files\/)/)?.[1];
-      const user = getLtiSession(req) || (isAdminAuthenticated(req) ? { role: 'admin' } : null);
+      const user = await getSessionUser(req);
       if (!user || !slideId) return res.status(401).json({ error: 'Требуется авторизация для доступа к препарату' });
       const slide = (await readSlides()).find((item) => item.id === slideId);
       if (!slide || !(await getSlideAccess(slide, user))) return res.status(403).json({ error: 'Нет доступа к препарату' });
@@ -920,6 +1050,38 @@ async function initDatabase() {
       ALTER TABLE teacher_accounts ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
       ALTER TABLE teacher_accounts ADD COLUMN IF NOT EXISTS course_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
       ALTER TABLE teacher_accounts ADD COLUMN IF NOT EXISTS group_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+      CREATE TABLE IF NOT EXISTS users (
+        id bigserial PRIMARY KEY,
+        login text UNIQUE NOT NULL,
+        email text UNIQUE,
+        full_name text NOT NULL DEFAULT '',
+        password_hash text,
+        role text NOT NULL DEFAULT 'student',
+        permission_overrides jsonb NOT NULL DEFAULT '{}'::jsonb,
+        is_active boolean NOT NULL DEFAULT true,
+        auth_provider text NOT NULL DEFAULT 'local',
+        moodle_user_id text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        last_login_at timestamptz,
+        deleted_at timestamptz
+      );
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email text UNIQUE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name text NOT NULL DEFAULT '';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'student';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS permission_overrides jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider text NOT NULL DEFAULT 'local';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS moodle_user_id text;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamptz;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+      CREATE INDEX IF NOT EXISTS users_login_idx ON users(lower(login));
+      CREATE INDEX IF NOT EXISTS users_email_idx ON users(lower(email));
+      CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
+      CREATE INDEX IF NOT EXISTS users_auth_provider_idx ON users(auth_provider);
+      CREATE INDEX IF NOT EXISTS users_moodle_user_id_idx ON users(moodle_user_id);
 
       CREATE TABLE IF NOT EXISTS moodle_platforms (id bigserial PRIMARY KEY, issuer text UNIQUE NOT NULL, client_id text NOT NULL, deployment_id text NOT NULL, auth_login_url text, auth_token_url text, jwks_url text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
       CREATE TABLE IF NOT EXISTS moodle_users (id bigserial PRIMARY KEY, platform_id bigint REFERENCES moodle_platforms(id) ON DELETE CASCADE, moodle_user_id text NOT NULL, name text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', role text NOT NULL DEFAULT 'student', claims jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(platform_id, moodle_user_id));
@@ -2433,6 +2595,15 @@ async function persistLtiLaunch({ platform, launch, claims }) {
     [platform.id, String(claims.sub), String(claims.name || `${claims.given_name || ''} ${claims.family_name || ''}`).trim(), String(claims.email || ''), role, JSON.stringify(claims)]
   );
   const user = userResult.rows[0];
+  const commonUser = (await pool.query(
+    `INSERT INTO users (login,email,full_name,password_hash,role,auth_provider,moodle_user_id)
+     VALUES ($1,$2,$3,NULL,$4,'moodle_lti',$5)
+     ON CONFLICT(login) DO UPDATE SET email=EXCLUDED.email, full_name=EXCLUDED.full_name, auth_provider='moodle_lti', moodle_user_id=EXCLUDED.moodle_user_id, updated_at=now()
+     RETURNING *`,
+    [`moodle_${platform.id}_${claims.sub}`.toLowerCase().replace(/[^a-z0-9_-]+/g, '_'), String(claims.email || ''), String(claims.name || `${claims.given_name || ''} ${claims.family_name || ''}`).trim(), role, String(claims.sub)]
+  )).rows[0];
+  const finalRole = normalizeRole(commonUser.role, role);
+  const finalPermissions = permissionsForRole(finalRole, commonUser.permission_overrides || {});
   const groupExternalId = custom.custom_moodle_group_id || custom.custom_user_group || claims['https://purl.imsglobal.org/spec/lti/claim/groups']?.[0];
   let group = null;
   if (groupExternalId) {
@@ -2445,9 +2616,10 @@ async function persistLtiLaunch({ platform, launch, claims }) {
   if (resource.id) resourceLink = (await pool.query('INSERT INTO lti_resource_links (course_id,resource_link_id,title,data) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT(course_id,resource_link_id) DO UPDATE SET title=EXCLUDED.title,data=EXCLUDED.data RETURNING *', [course.id, String(resource.id), String(resource.title || ''), JSON.stringify(resource)])).rows[0];
   const ags = claims['https://purl.imsglobal.org/spec/lti-ags/claim/endpoint'] || {};
   await pool.query('UPDATE lti_launches SET platform_id=$2,moodle_user_id=$3,course_id=$4,id_token_claims=$5::jsonb,ags=$6::jsonb WHERE id=$1', [launch.id, platform.id, user.id, course.id, JSON.stringify(claims), JSON.stringify({ ...ags, resourceLinkId: resourceLink?.id || null })]);
-  return { user, course, group, role, resourceLink, ags };
+  return { user, commonUser, course, group, role: finalRole, permissions: finalPermissions, resourceLink, ags };
 }
 
+if (ENABLE_MOODLE_LTI) {
 app.get('/.well-known/jwks.json', (req, res) => {
   if (!LTI_PUBLIC_KEY) return res.status(503).json({ error: 'LTI_PUBLIC_KEY не настроен' });
   try {
@@ -2478,29 +2650,42 @@ app.post('/lti/launch', async (req, res) => {
     const persisted = await persistLtiLaunch({ platform, launch, claims });
     // Keep the audited launch (and its AGS endpoint) for grade retries, while invalidating state.
     await pool.query('UPDATE lti_launches SET state=$2, expires_at=now() WHERE id=$1', [launch.id, `used-${crypto.randomUUID()}`]);
-    setLtiSessionCookie(res, { authProvider: 'moodle_lti', moodleUserId: persisted.user.moodle_user_id, userId: persisted.user.id, name: persisted.user.name, email: persisted.user.email, role: persisted.role, permissions: permissionsForRole(persisted.role), courseIds: [persisted.course.id], groupIds: persisted.group ? [persisted.group.id] : [], courseExternalIds: [persisted.course.course_id], resourceLinkId: persisted.resourceLink?.id || null, ags: persisted.ags, platformId: platform.id });
+    setLtiSessionCookie(res, { authProvider: 'moodle_lti', moodleUserId: persisted.user.moodle_user_id, userId: persisted.user.id, name: persisted.user.name, email: persisted.user.email, role: persisted.role, permissions: persisted.permissions, courseIds: [persisted.course.id], groupIds: persisted.group ? [persisted.group.id] : [], courseExternalIds: [persisted.course.course_id], resourceLinkId: persisted.resourceLink?.id || null, ags: persisted.ags, platformId: platform.id });
     return res.redirect('/');
   } catch (error) { return res.status(401).json({ error: `LTI launch отклонён: ${error.message}` }); }
 });
+}
 
-app.get('/api/me', (req, res) => {
-  const devUser = getDevUser();
-  if (devUser) {
+app.get('/api/me', async (req, res, next) => {
+  try {
+    const user = await getSessionUser(req);
+    if (!user) {
+      const guest = getLocalGuestUser();
+      return res.json({
+        authenticated: false,
+        authProvider: 'local',
+        role: guest.role,
+        permissions: guest.permissions,
+      });
+    }
+
     return res.json({
       authenticated: true,
-      authProvider: 'dev',
-      role: devUser.role,
-      moodleUserId: devUser.moodleUserId,
-      name: devUser.name,
-      email: devUser.email,
-      courses: devUser.courseExternalIds,
-      groups: devUser.groupIds,
-      permissions: devUser.permissions,
+      authProvider: user.authProvider,
+      id: user.id || user.userId || null,
+      login: user.login || '',
+      role: user.role,
+      moodleUserId: user.moodleUserId || '',
+      name: user.name || user.login || '',
+      email: user.email || '',
+      courses: user.courseExternalIds || [],
+      groups: user.groupIds || [],
+      permissions: user.permissions,
+      permissionOverrides: user.permissionOverrides || {},
     });
+  } catch (error) {
+    return next(error);
   }
-  const user = getLtiSession(req);
-  if (!user) return res.json({ authenticated: false });
-  return res.json({ authenticated: true, authProvider: 'moodle_lti', role: user.role, moodleUserId: user.moodleUserId, name: user.name, email: user.email, courses: user.courseExternalIds || [], groups: user.groupIds || [], permissions: user.permissions });
 });
 app.get('/api/auth/check-slide-access', requireAuth, async (req, res) => {
   const originalUri = String(req.get('X-Original-URI') || '');
@@ -2563,16 +2748,23 @@ app.get('/api/health', async (req, res) => {
   res.status(report.ok ? 200 : 503).json(report);
 });
 
-app.get('/api/admin/session', async (req, res) => {
-  const session = isAdminAuthenticated(req);
-  const accounts = await listTeacherAccounts();
-  res.json({
-    ok: true,
-    configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD || TEACHER_ACCOUNTS.length || accounts.length),
-    authenticated: Boolean(session),
-    role: session?.role || '',
-    login: session?.login || '',
-  });
+app.get('/api/admin/session', async (req, res, next) => {
+  try {
+    const sessionUser = await getSessionUser(req);
+    const accounts = await listTeacherAccounts();
+    const users = await listUsers();
+    res.json({
+      ok: true,
+      configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD || TEACHER_ACCOUNTS.length || accounts.length || users.length),
+      authenticated: Boolean(sessionUser),
+      role: sessionUser?.role || '',
+      login: sessionUser?.login || '',
+      name: sessionUser?.name || '',
+      permissions: sessionUser?.permissions || {},
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/api/admin/login', async (req, res) => {
@@ -2584,9 +2776,12 @@ app.post('/api/admin/login', async (req, res) => {
 
   const login = String(req.body?.login || '').trim().toLowerCase();
   const teacher = TEACHER_ACCOUNTS.find((account) => account.login === login);
+  const storedUser = await findUserByLogin(login);
   const storedTeacher = await findStoredTeacherAccount(login);
   const session = login === ADMIN_LOGIN.toLowerCase() && isAdminPasswordValid(req.body?.password)
     ? { role: 'admin', login }
+    : storedUser && storedUser.is_active && storedUser.password_hash && await isStoredPasswordValid(storedUser.password_hash, req.body?.password)
+      ? { role: normalizeRole(storedUser.role), login: storedUser.login, userId: storedUser.id }
     : teacher && isPasswordValid(teacher.password, req.body?.password)
       ? { role: 'teacher', login: teacher.login }
       : storedTeacher && storedTeacher.active && await isStoredPasswordValid(storedTeacher.password_hash, req.body?.password)
@@ -2603,6 +2798,7 @@ app.post('/api/admin/login', async (req, res) => {
   }
 
   setAdminSessionCookie(res, session.role, session.login);
+  if (session.userId) await pool.query('UPDATE users SET last_login_at=now(), updated_at=now() WHERE id=$1', [session.userId]);
   return res.json({
     ok: true,
     role: session.role,
@@ -2617,7 +2813,99 @@ app.post('/api/admin/logout', (req, res) => {
   });
 });
 
-app.use('/api/admin', requireAuth);
+app.use('/api/admin', requireAdminAreaAuth);
+
+app.get('/api/admin/users', requireUserManagement, async (req, res, next) => {
+  try {
+    res.json(await listUsers());
+  } catch (error) { next(error); }
+});
+
+app.post('/api/admin/users', requireUserManagement, async (req, res) => {
+  try {
+    const login = normalizeAccountLogin(req.body?.login);
+    const password = requireAccountPassword(req.body?.password);
+    const role = normalizeRole(req.body?.role, 'teacher_limited');
+    const email = normalizeOptionalEmail(req.body?.email);
+    const fullName = normalizeFullName(req.body?.fullName || req.body?.name);
+    const permissionOverrides = normalizePermissionOverrides(req.body?.permissionOverrides || {});
+    if (login === ADMIN_LOGIN || login === 'teacher' || TEACHER_ACCOUNTS.some((account) => account.login === login)) {
+      return res.status(400).json({ error: 'Этот логин зарезервирован конфигурацией сервера' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO users (login,email,full_name,password_hash,role,permission_overrides,is_active,auth_provider)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,'local') RETURNING *`,
+      [login, email || null, fullName, await hashAccountPassword(password), role, JSON.stringify(permissionOverrides), req.body?.isActive !== false]
+    );
+    return res.status(201).json(userRowToApi(rows[0]));
+  } catch (error) {
+    return res.status(error.code === '23505' ? 409 : 400).json({ error: error.code === '23505' ? 'Пользователь с таким логином или email уже существует' : error.message });
+  }
+});
+
+app.get('/api/admin/users/:id', requireUserManagement, async (req, res) => {
+  const user = await findUserById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  return res.json(userRowToApi(user));
+});
+
+app.put('/api/admin/users/:id', requireUserManagement, async (req, res) => {
+  try {
+    const role = normalizeRole(req.body?.role, 'teacher_limited');
+    const email = normalizeOptionalEmail(req.body?.email);
+    const fullName = normalizeFullName(req.body?.fullName || req.body?.name);
+    const permissionOverrides = normalizePermissionOverrides(req.body?.permissionOverrides || {});
+    const { rows } = await pool.query(
+      `UPDATE users SET email=$2, full_name=$3, role=$4, permission_overrides=$5::jsonb, is_active=$6, updated_at=now()
+       WHERE id=$1 AND deleted_at IS NULL RETURNING *`,
+      [req.params.id, email || null, fullName, role, JSON.stringify(permissionOverrides), req.body?.isActive !== false]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Пользователь не найден' });
+    return res.json(userRowToApi(rows[0]));
+  } catch (error) {
+    return res.status(error.code === '23505' ? 409 : 400).json({ error: error.code === '23505' ? 'Пользователь с таким email уже существует' : error.message });
+  }
+});
+
+app.patch('/api/admin/users/:id/permissions', requireUserManagement, async (req, res) => {
+  const permissionOverrides = normalizePermissionOverrides(req.body?.permissionOverrides || req.body?.permissions || {});
+  const { rows } = await pool.query(
+    'UPDATE users SET permission_overrides=$2::jsonb, updated_at=now() WHERE id=$1 AND deleted_at IS NULL RETURNING *',
+    [req.params.id, JSON.stringify(permissionOverrides)]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Пользователь не найден' });
+  return res.json(userRowToApi(rows[0]));
+});
+
+app.patch('/api/admin/users/:id/password', requireUserManagement, async (req, res) => {
+  try {
+    const password = requireAccountPassword(req.body?.password);
+    const { rows } = await pool.query(
+      'UPDATE users SET password_hash=$2, updated_at=now() WHERE id=$1 AND deleted_at IS NULL RETURNING *',
+      [req.params.id, await hashAccountPassword(password)]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Пользователь не найден' });
+    return res.json({ ok: true, id: rows[0].id });
+  } catch (error) { return res.status(400).json({ error: error.message }); }
+});
+
+app.patch('/api/admin/users/:id/status', requireUserManagement, async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE users SET is_active=$2, updated_at=now() WHERE id=$1 AND deleted_at IS NULL RETURNING *',
+    [req.params.id, req.body?.isActive !== false]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Пользователь не найден' });
+  return res.json(userRowToApi(rows[0]));
+});
+
+app.delete('/api/admin/users/:id', requireUserManagement, async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE users SET is_active=false, deleted_at=now(), updated_at=now() WHERE id=$1 AND deleted_at IS NULL RETURNING id',
+    [req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Пользователь не найден' });
+  return res.json({ ok: true, id: rows[0].id });
+});
 
 app.get('/api/admin/teachers', requireAdministrator, async (req, res) => {
   res.json(await listTeacherAccounts());
