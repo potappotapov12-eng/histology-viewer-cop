@@ -442,12 +442,7 @@ async function requireAuth(req, res, next) {
     const user = await getSessionUser(req);
     if (user) { req.user = user; return next(); }
 
-    if (!ENABLE_MOODLE_LTI) {
-      req.user = getLocalGuestUser();
-      return next();
-    }
-
-    return res.status(401).json({ error: 'Требуется авторизация через Moodle LTI', authenticated: false });
+    return res.status(401).json({ error: 'Требуется вход в систему', authenticated: false });
   } catch (error) {
     return next(error);
   }
@@ -476,8 +471,16 @@ function maskSlideForResident(slide, index) {
   const title = `Препарат ${index + 1}`;
   return { id: slide.id, title, displayTitle: title, description: '', diagnosis: '', diagnosticSigns: [], selfCheckQuestions: [], organ: '', stain: slide.stain || '', system: slide.system || '', viewerOnly: true, source: slide.source, dziUrl: slide.dziUrl || slide.source };
 }
+function maskSlideForStudent(slide) {
+  return {
+    ...slide,
+    description: '',
+    diagnosis: '',
+    diagnosticSigns: [],
+    selfCheckQuestions: [],
+  };
+}
 async function getSlideAccess(slide, user) {
-  if (!ENABLE_MOODLE_LTI && user.authProvider === 'local') return true;
   if (user.role === 'admin' || user.role === 'teacher_full') return true;
   if (user.role === 'teacher_limited') return true;
   if (user.role === 'resident' && slide.visibleForResidents === false) return false;
@@ -501,7 +504,6 @@ async function requireSlideAccess(slideId) {
   return slide;
 }
 async function getDiagnosticAccess(diagnostic, user) {
-  if (!ENABLE_MOODLE_LTI && user.authProvider === 'local') return true;
   if (user.role === 'resident') return false;
   if (['admin', 'teacher_full', 'teacher_limited'].includes(user.role)) return true;
   if (user.authProvider === 'dev') return true;
@@ -541,6 +543,51 @@ function isPasswordValid(expected, actual) {
   const expectedBuffer = Buffer.from(expected);
   const actualBuffer = Buffer.from(String(actual || ''));
   return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
+function isLocalAuthConfigured({ storedTeachers = [], storedUsers = [] } = {}) {
+  return Boolean(
+    ADMIN_PASSWORD ||
+    TEACHER_PASSWORD ||
+    TEACHER_ACCOUNTS.length ||
+    storedTeachers.length ||
+    storedUsers.length
+  );
+}
+
+async function authenticateLocalCredentials({ login: rawLogin, password }) {
+  const accounts = await listTeacherAccounts();
+  const users = await listUsers();
+
+  if (!isLocalAuthConfigured({ storedTeachers: accounts, storedUsers: users })) {
+    const error = new Error('Локальная авторизация не настроена. Задайте ADMIN_PASSWORD или создайте пользователей.');
+    error.status = 503;
+    throw error;
+  }
+
+  const login = String(rawLogin || '').trim().toLowerCase();
+  const teacher = TEACHER_ACCOUNTS.find((account) => account.login === login);
+  const storedUser = await findUserByLogin(login);
+  const storedTeacher = await findStoredTeacherAccount(login);
+  const session = login === ADMIN_LOGIN.toLowerCase() && isAdminPasswordValid(password)
+    ? { role: 'admin', login }
+    : storedUser && storedUser.is_active && storedUser.password_hash && await isStoredPasswordValid(storedUser.password_hash, password)
+      ? { role: normalizeRole(storedUser.role), login: storedUser.login, userId: storedUser.id }
+    : teacher && isPasswordValid(teacher.password, password)
+      ? { role: 'teacher', login: teacher.login }
+      : storedTeacher && storedTeacher.active && await isStoredPasswordValid(storedTeacher.password_hash, password)
+        ? { role: storedTeacher.role || 'teacher_full', login: storedTeacher.login }
+      : login === 'teacher' && isTeacherPasswordValid(password)
+        ? { role: 'teacher', login }
+        : null;
+
+  if (!session) {
+    const error = new Error('Неверный логин или пароль');
+    error.status = 401;
+    throw error;
+  }
+
+  return session;
 }
 
 function normalizeAccountLogin(value) {
@@ -703,24 +750,6 @@ async function getSessionUser(req) {
   return null;
 }
 
-function getLocalGuestUser() {
-  return {
-    authenticated: false,
-    authProvider: 'local',
-    role: 'guest',
-    name: '',
-    permissions: {
-      canViewSlides: true,
-      canViewSlideCards: true,
-      canViewSlideDescriptions: true,
-    },
-    courseIds: [],
-    groupIds: [],
-    courseExternalIds: [],
-    isActive: true,
-  };
-}
-
 await fs.mkdir(DATA_DIR, { recursive: true });
 await fs.mkdir(BACKUP_DIR, { recursive: true });
 await fs.mkdir(UPLOAD_LOG_DIR, { recursive: true });
@@ -741,7 +770,6 @@ app.use(
   '/slides',
   async (req, res, next) => {
     try {
-      if (!ENABLE_MOODLE_LTI) return next();
       const slideId = String(req.path).match(/^\/([^/_./]+)(?:\.dzi|_files\/)/)?.[1];
       const user = await getSessionUser(req);
       if (!user || !slideId) return res.status(401).json({ error: 'Требуется авторизация для доступа к препарату' });
@@ -2656,12 +2684,11 @@ app.get('/api/me', async (req, res, next) => {
   try {
     const user = await getSessionUser(req);
     if (!user) {
-      const guest = getLocalGuestUser();
       return res.json({
         authenticated: false,
         authProvider: 'local',
-        role: guest.role,
-        permissions: guest.permissions,
+        role: '',
+        permissions: {},
       });
     }
 
@@ -2682,6 +2709,56 @@ app.get('/api/me', async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
+});
+
+app.get('/api/auth/config', async (req, res, next) => {
+  try {
+    const accounts = await listTeacherAccounts();
+    const users = await listUsers();
+    res.json({
+      authMode: AUTH_MODE,
+      localEnabled: isLocalAuthConfigured({ storedTeachers: accounts, storedUsers: users }),
+      moodleEnabled: ENABLE_MOODLE_LTI,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const session = await authenticateLocalCredentials(req.body || {});
+    setAdminSessionCookie(res, session.role, session.login);
+    if (session.userId) await pool.query('UPDATE users SET last_login_at=now(), updated_at=now() WHERE id=$1', [session.userId]);
+    return res.json({
+      ok: true,
+      role: session.role === 'teacher' ? 'teacher_full' : normalizeRole(session.role, 'teacher_full'),
+      login: session.login,
+    });
+  } catch (error) {
+    clearAdminSessionCookie(res);
+    return res.status(error.status || 400).json({ error: error.message || 'Не удалось войти' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearAdminSessionCookie(res);
+  res.setHeader('Set-Cookie', [
+    `${ADMIN_SESSION_COOKIE}=; ${getAdminCookieOptions({ expires: new Date(0) })}; Max-Age=0`,
+    `${LTI_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Expires=${new Date(0).toUTCString()}; Max-Age=0`,
+  ]);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/moodle-login', (req, res) => {
+  if (!ENABLE_MOODLE_LTI || ltiConfigurationError()) {
+    return res.status(503).json({ error: 'Moodle LTI не настроен' });
+  }
+  const url = new URL('/lti/login', `http://127.0.0.1:${PORT}`);
+  url.searchParams.set('iss', LTI_CONFIG.issuer);
+  url.searchParams.set('client_id', LTI_CONFIG.clientId);
+  url.searchParams.set('lti_deployment_id', LTI_CONFIG.deploymentId);
+  return res.redirect(`${url.pathname}${url.search}`);
 });
 app.get('/api/auth/check-slide-access', requireAuth, async (req, res) => {
   const originalUri = String(req.get('X-Original-URI') || '');
@@ -2734,12 +2811,16 @@ app.get('/api/slides', requireAuth, async (req, res) => {
   const slides = await readSlides();
   const allowed = [];
   for (const slide of slides) if (await getSlideAccess(slide, req.user)) allowed.push(slide);
-  res.json(req.user.role === 'resident'
-    ? allowed.map((slide, index) => maskSlideForResident(slide, index))
-    : allowed);
+  if (req.user.role === 'resident') {
+    return res.json(allowed.map((slide, index) => maskSlideForResident(slide, index)));
+  }
+  if (req.user.role === 'student') {
+    return res.json(allowed.map(maskSlideForStudent));
+  }
+  return res.json(allowed);
 });
 
-app.get('/api/health', async (req, res) => {
+app.get('/api/health', requireAuth, async (req, res) => {
   const report = await getHealthReport();
   res.status(report.ok ? 200 : 503).json(report);
 });
@@ -2751,7 +2832,7 @@ app.get('/api/admin/session', async (req, res, next) => {
     const users = await listUsers();
     res.json({
       ok: true,
-      configured: Boolean(ADMIN_PASSWORD || TEACHER_PASSWORD || TEACHER_ACCOUNTS.length || accounts.length || users.length),
+      configured: isLocalAuthConfigured({ storedTeachers: accounts, storedUsers: users }),
       authenticated: Boolean(sessionUser),
       role: sessionUser?.role || '',
       login: sessionUser?.login || '',
@@ -2764,46 +2845,27 @@ app.get('/api/admin/session', async (req, res, next) => {
 });
 
 app.post('/api/admin/login', async (req, res) => {
-  if (!ADMIN_PASSWORD && !TEACHER_PASSWORD && TEACHER_ACCOUNTS.length === 0 && !(await listTeacherAccounts()).length) {
-    return res.status(503).json({
-      error: 'Авторизация администратора не настроена. Задайте ADMIN_PASSWORD на сервере.',
+  try {
+    const session = await authenticateLocalCredentials(req.body || {});
+    setAdminSessionCookie(res, session.role, session.login);
+    if (session.userId) await pool.query('UPDATE users SET last_login_at=now(), updated_at=now() WHERE id=$1', [session.userId]);
+    return res.json({
+      ok: true,
+      role: session.role,
+      login: session.login,
     });
-  }
-
-  const login = String(req.body?.login || '').trim().toLowerCase();
-  const teacher = TEACHER_ACCOUNTS.find((account) => account.login === login);
-  const storedUser = await findUserByLogin(login);
-  const storedTeacher = await findStoredTeacherAccount(login);
-  const session = login === ADMIN_LOGIN.toLowerCase() && isAdminPasswordValid(req.body?.password)
-    ? { role: 'admin', login }
-    : storedUser && storedUser.is_active && storedUser.password_hash && await isStoredPasswordValid(storedUser.password_hash, req.body?.password)
-      ? { role: normalizeRole(storedUser.role), login: storedUser.login, userId: storedUser.id }
-    : teacher && isPasswordValid(teacher.password, req.body?.password)
-      ? { role: 'teacher', login: teacher.login }
-      : storedTeacher && storedTeacher.active && await isStoredPasswordValid(storedTeacher.password_hash, req.body?.password)
-        ? { role: storedTeacher.role || 'teacher_full', login: storedTeacher.login }
-      : login === 'teacher' && isTeacherPasswordValid(req.body?.password)
-        ? { role: 'teacher', login }
-        : null;
-
-  if (!session) {
+  } catch (error) {
     clearAdminSessionCookie(res);
-    return res.status(401).json({
-      error: 'Неверный пароль',
-    });
+    return res.status(error.status || 400).json({ error: error.message || 'Не удалось войти' });
   }
-
-  setAdminSessionCookie(res, session.role, session.login);
-  if (session.userId) await pool.query('UPDATE users SET last_login_at=now(), updated_at=now() WHERE id=$1', [session.userId]);
-  return res.json({
-    ok: true,
-    role: session.role,
-    login: session.login,
-  });
 });
 
 app.post('/api/admin/logout', (req, res) => {
   clearAdminSessionCookie(res);
+  res.setHeader('Set-Cookie', [
+    `${ADMIN_SESSION_COOKIE}=; ${getAdminCookieOptions({ expires: new Date(0) })}; Max-Age=0`,
+    `${LTI_SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Expires=${new Date(0).toUTCString()}; Max-Age=0`,
+  ]);
   res.json({
     ok: true,
   });

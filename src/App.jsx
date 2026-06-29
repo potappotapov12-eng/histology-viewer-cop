@@ -722,8 +722,119 @@ function ErrorApp({ message }) {
   );
 }
 
-function MoodleLoginRequired() {
-  return <div className="emptyApp"><div className="emptyCard"><h1>Откройте атлас через Moodle</h1><p>Войдите в Moodle и откройте внешний инструмент «Гистологический атлас» из нужного курса.</p></div></div>;
+function LoginPage({ authConfig, onAuthenticated }) {
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const canSubmit = login.trim().length > 0 && password.length > 0 && !isSubmitting;
+
+  const submitLogin = async (event) => {
+    event.preventDefault();
+    setError('');
+
+    if (!login.trim()) {
+      setError('Введите логин');
+      return;
+    }
+
+    if (!password) {
+      setError('Введите пароль');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ login, password }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Неверный логин или пароль');
+      }
+
+      setPassword('');
+      await onAuthenticated();
+    } catch (loginError) {
+      setError(loginError.message || 'Неверный логин или пароль');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startMoodleLogin = () => {
+    window.location.href = '/api/auth/moodle-login';
+  };
+
+  return (
+    <main className="loginPage">
+      <section className="loginShell">
+        <div className="loginBrand">
+          <img src="/logo-ugmu.png" alt="УГМУ" />
+          <span>Гистологический атлас</span>
+        </div>
+
+        <form className="loginPanel" onSubmit={submitLogin}>
+          <div className="loginIntro">
+            <p>Защищённый вход</p>
+            <h1>Авторизация</h1>
+            <span>Роль и доступные разделы будут определены автоматически после входа.</span>
+          </div>
+
+          <label className="loginField">
+            Логин
+            <input
+              value={login}
+              onChange={(event) => setLogin(event.target.value)}
+              autoComplete="username"
+              autoFocus
+              placeholder="admin, teacher или ваш логин"
+            />
+          </label>
+
+          <label className="loginField">
+            Пароль
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              placeholder="Введите пароль"
+            />
+          </label>
+
+          {error && <p className="loginError">{error}</p>}
+
+          <button className="loginPrimaryButton" type="submit" disabled={!canSubmit}>
+            {isSubmitting ? <span className="loginSpinner" aria-hidden="true" /> : null}
+            {isSubmitting ? 'Проверяем доступ...' : 'Войти'}
+          </button>
+
+          {authConfig?.moodleEnabled && (
+            <button className="loginMoodleButton" type="button" onClick={startMoodleLogin}>
+              Войти через Moodle
+            </button>
+          )}
+        </form>
+
+        <aside className="loginRoles" aria-label="Роли пользователей">
+          <span>Роли</span>
+          <ul>
+            <li>Администратор</li>
+            <li>Преподаватель полный</li>
+            <li>Преподаватель ограниченный</li>
+            <li>Ординатор</li>
+            <li>Студент</li>
+          </ul>
+        </aside>
+      </section>
+    </main>
+  );
 }
 
 function ViewerApp() {
@@ -1852,6 +1963,91 @@ function DiagnosticPage() {
 }
 
 function App() {
+  return <AuthenticatedApp />;
+}
+
+function getRoleHomePath(user) {
+  if (
+    ['admin', 'teacher_full', 'teacher_limited'].includes(user?.role) ||
+    user?.permissions?.canCreateDiagnostics ||
+    user?.permissions?.canUploadSlides
+  ) {
+    return '/admin';
+  }
+
+  return '/';
+}
+
+function syncPathToRole(user) {
+  const currentPath = window.location.pathname;
+  const homePath = getRoleHomePath(user);
+  const canUseAdmin =
+    homePath === '/admin' ||
+    user?.permissions?.canCreateDiagnostics ||
+    user?.permissions?.canViewResults;
+
+  if (currentPath.startsWith('/diagnostics/')) return;
+  if (currentPath.startsWith('/admin') && !canUseAdmin) {
+    window.history.replaceState(null, '', '/');
+    return;
+  }
+  if ((currentPath === '/' || currentPath === '/admin') && currentPath !== homePath) {
+    window.history.replaceState(null, '', homePath);
+  }
+}
+
+function AuthenticatedApp() {
+  const [state, setState] = useState({
+    loading: true,
+    user: null,
+    authConfig: null,
+    error: '',
+  });
+
+  const loadAuthState = useCallback(async () => {
+    const [configResponse, meResponse] = await Promise.all([
+      fetch('/api/auth/config').catch(() => null),
+      fetch('/api/me').catch(() => null),
+    ]);
+    const authConfig = configResponse?.ok
+      ? await configResponse.json().catch(() => ({}))
+      : { localEnabled: true, moodleEnabled: false };
+    const user = meResponse?.ok
+      ? await meResponse.json().catch(() => ({ authenticated: false }))
+      : { authenticated: false };
+
+    const nextUser = user.authenticated ? user : null;
+    if (nextUser) syncPathToRole(nextUser);
+    setState({
+      loading: false,
+      user: nextUser,
+      authConfig,
+      error: '',
+    });
+  }, []);
+
+  useEffect(() => {
+    loadAuthState().catch((error) => {
+      setState({
+        loading: false,
+        user: null,
+        authConfig: { localEnabled: true, moodleEnabled: false },
+        error: error.message || 'Не удалось проверить сессию',
+      });
+    });
+  }, [loadAuthState]);
+
+  if (state.loading) return <LoadingApp />;
+  if (!state.user) {
+    return (
+      <LoginPage
+        authConfig={state.authConfig}
+        onAuthenticated={loadAuthState}
+      />
+    );
+  }
+
+  if (window.location.pathname.startsWith('/diagnostics/')) return <DiagnosticPage />;
   if (window.location.pathname.startsWith('/admin')) {
     return (
       <Suspense fallback={<LoadingApp />}>
@@ -1859,23 +2055,6 @@ function App() {
       </Suspense>
     );
   }
-
-  return <LtiProtectedApp />;
-}
-
-function LtiProtectedApp() {
-  const [state, setState] = useState({ loading: true, user: null });
-  useEffect(() => {
-    fetch('/api/me').then((response) => response.ok ? response.json() : { authenticated: false })
-      .then((user) => setState({
-        loading: false,
-        user: user.authenticated || user.permissions?.canViewSlides ? user : null,
-      }))
-      .catch(() => setState({ loading: false, user: null }));
-  }, []);
-  if (state.loading) return <LoadingApp />;
-  if (!state.user) return <MoodleLoginRequired />;
-  if (window.location.pathname.startsWith('/diagnostics/')) return <DiagnosticPage />;
   return <ViewerApp />;
 }
 
