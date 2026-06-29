@@ -1,109 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-const INITIAL_FORM = {
-  id: '',
-  title: '',
-  lesson: '',
-  system: '',
-  organ: '',
-  stain: 'H&E',
-  description: '',
-  diagnosticSigns: [],
-  selfCheckQuestions: '',
-  source: '',
-  courseIds: [],
-  groupIds: [],
-  visibleForStudents: true,
-  visibleForResidents: false,
-};
-
-const INITIAL_DIAGNOSTIC_FORM = {
-  id: '',
-  title: '',
-  startsAt: '',
-  endsAt: '',
-  durationMinutes: '',
-  isPublished: true,
-  courseIds: [],
-  groupIds: [],
-  questions: [],
-};
-
-const DEFAULT_REGION_THRESHOLD = 70;
-const DIAGNOSTIC_DRAFT_KEY = 'histology-viewer-diagnostic-draft';
-const DIAGNOSTIC_TIME_ZONE = 'Asia/Yekaterinburg';
-const DIAGNOSTIC_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('ru-RU', {
-  timeZone: DIAGNOSTIC_TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
-
-const ROLE_LABELS = {
-  admin: 'Администратор',
-  teacher_full: 'Преподаватель с полным доступом',
-  teacher_limited: 'Преподаватель с ограниченным доступом',
-  resident: 'Ординатор',
-  student: 'Студент',
-};
-
-const USER_ROLE_OPTIONS = ['teacher_full', 'teacher_limited', 'resident', 'student'];
-
-const PERMISSION_LABELS = {
-  canCreateSlideCards: 'Создание карточек препаратов',
-  canEditSlideCards: 'Редактирование карточек препаратов',
-  canDeleteSlideCards: 'Удаление карточек препаратов',
-  canUploadSlides: 'Загрузка препаратов',
-  canEditSlides: 'Редактирование препаратов',
-  canDeleteSlides: 'Удаление препаратов',
-  canCreateDiagnostics: 'Создание диагностик',
-  canEditOwnDiagnostics: 'Редактирование своих диагностик',
-  canEditAllDiagnostics: 'Редактирование всех диагностик',
-  canDeleteDiagnostics: 'Удаление диагностик',
-  canViewResults: 'Просмотр результатов',
-  canGradeResults: 'Проверка результатов',
-};
-
-const PERMISSION_KEYS = Object.keys(PERMISSION_LABELS);
-
-function createEmptyUserForm() {
-  return {
-    id: null,
-    login: '',
-    email: '',
-    fullName: '',
-    password: '',
-    role: 'teacher_limited',
-    isActive: true,
-    permissionOverrides: {},
-  };
-}
-
-const IMPORT_FIELD_ALIASES = {
-  id: 'id',
-  идентификатор: 'id',
-  title: 'title',
-  название: 'title',
-  lesson: 'lesson',
-  занятие: 'lesson',
-  system: 'system',
-  раздел: 'system',
-  organ: 'organ',
-  орган: 'organ',
-  stain: 'stain',
-  окраска: 'stain',
-  source: 'source',
-  'dzi-адрес': 'source',
-  description: 'description',
-  описание: 'description',
-  diagnosticsigns: 'diagnosticSigns',
-  'диагностические признаки': 'diagnosticSigns',
-  selfcheckquestions: 'selfCheckQuestions',
-  'вопросы для самопроверки': 'selfCheckQuestions',
-};
+import {
+  DEFAULT_REGION_THRESHOLD,
+  DIAGNOSTIC_DATE_TIME_FORMATTER,
+  DIAGNOSTIC_DRAFT_KEY,
+  IMPORT_FIELD_ALIASES,
+  INITIAL_DIAGNOSTIC_FORM,
+  INITIAL_FORM,
+  PERMISSION_GROUPS,
+  PERMISSION_KEYS,
+  PERMISSION_LABELS,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  ROLE_PERMISSION_PRESETS,
+  USER_ROLE_OPTIONS,
+  createEmptyUserForm,
+} from './adminConfig';
 
 function parseCsvRows(content) {
   const rows = [];
@@ -1509,6 +1420,16 @@ function AdminDashboard({ onLogout, role }) {
   const [userForm, setUserForm] = useState(createEmptyUserForm);
   const [usersStatus, setUsersStatus] = useState('');
 
+  const currentRolePreset = ROLE_PERMISSION_PRESETS[userForm.role] || ROLE_PERMISSION_PRESETS.student;
+  const getUserFormPermission = (permission) => (
+    Object.hasOwn(userForm.permissionOverrides || {}, permission)
+      ? Boolean(userForm.permissionOverrides[permission])
+      : Boolean(currentRolePreset[permission])
+  );
+  const enabledUserFormPermissions = PERMISSION_KEYS.filter((permission) => getUserFormPermission(permission)).length;
+  const changedUserFormPermissions = Object.keys(userForm.permissionOverrides || {}).length;
+  const canSubmitUserForm = userForm.login.trim() && userForm.fullName.trim() && (userForm.id || userForm.password.trim());
+
   const isEditing = Boolean(editingId);
   const isEditingDiagnostic = Boolean(editingDiagnosticId);
   const activeDiagnosticQuestion =
@@ -1770,14 +1691,29 @@ function AdminDashboard({ onLogout, role }) {
   };
 
   const toggleUserPermission = (permission) => {
-    setUserForm((current) => ({
-      ...current,
-      permissionOverrides: {
-        ...current.permissionOverrides,
-        [permission]: !current.permissionOverrides?.[permission],
-      },
-    }));
+    setUserForm((current) => {
+      const rolePreset = ROLE_PERMISSION_PRESETS[current.role] || ROLE_PERMISSION_PRESETS.student;
+      const currentValue = Object.hasOwn(current.permissionOverrides || {}, permission)
+        ? Boolean(current.permissionOverrides[permission])
+        : Boolean(rolePreset[permission]);
+
+      return {
+        ...current,
+        permissionOverrides: {
+          ...current.permissionOverrides,
+          [permission]: !currentValue,
+        },
+      };
+    });
   };
+
+  const applyRolePermissions = () => {
+    setUserForm((current) => ({ ...current, permissionOverrides: {} }));
+  };
+
+  const countEnabledPermissions = (permissions = {}) => (
+    PERMISSION_KEYS.filter((permission) => Boolean(permissions[permission])).length
+  );
 
   const resetUserForm = () => {
     setUserForm(createEmptyUserForm());
@@ -1801,14 +1737,16 @@ function AdminDashboard({ onLogout, role }) {
     setUsersStatus(userForm.id ? 'Сохранение пользователя...' : 'Создание пользователя...');
     try {
       const payload = {
-        login: userForm.login,
-        email: userForm.email,
-        fullName: userForm.fullName,
-        password: userForm.password,
+        login: userForm.login.trim(),
+        email: userForm.email.trim(),
+        fullName: userForm.fullName.trim(),
         role: userForm.role,
         isActive: userForm.isActive,
         permissionOverrides: userForm.permissionOverrides,
       };
+      if (!userForm.id || userForm.password.trim()) {
+        payload.password = userForm.password;
+      }
       const response = await fetch(userForm.id ? `/api/admin/users/${userForm.id}` : '/api/admin/users', {
         method: userForm.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4047,84 +3985,192 @@ function AdminDashboard({ onLogout, role }) {
         </>
         )}
         {role === 'admin' && activeAdminTab === 'teachers' && (
-          <section className="adminCard teachersCard">
-            <div className="adminCardHeader">
+          <section className="admin-users-page">
+            <div className="admin-page-header">
               <div>
                 <h2>Пользователи</h2>
                 <p>Локальные пользователи, роли и индивидуальные права доступа.</p>
               </div>
+              <button type="button" className="adminPrimarySubmit primary-action" onClick={resetUserForm}>
+                Создать пользователя
+              </button>
             </div>
 
-            <form className="adminForm" onSubmit={saveUser}>
-              <label>
-                Логин
-                <input value={userForm.login} onChange={(event) => updateUserForm('login', event.target.value)} placeholder="ivanov" required disabled={Boolean(userForm.id)} />
-              </label>
-              <label>
-                ФИО
-                <input value={userForm.fullName} onChange={(event) => updateUserForm('fullName', event.target.value)} placeholder="Иванов Иван Иванович" />
-              </label>
-              <label>
-                Email
-                <input type="email" value={userForm.email} onChange={(event) => updateUserForm('email', event.target.value)} placeholder="teacher@example.edu" />
-              </label>
-              <label>
-                Роль
-                <select value={userForm.role} onChange={(event) => updateUserForm('role', event.target.value)}>
-                  {USER_ROLE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{ROLE_LABELS[option]}</option>
-                  ))}
-                </select>
-              </label>
-              {!userForm.id && (
-                <label>
-                  Пароль
-                  <input type="password" value={userForm.password} onChange={(event) => updateUserForm('password', event.target.value)} minLength="8" required />
-                </label>
-              )}
-              <label className="adminCheckboxLabel">
-                <input type="checkbox" checked={userForm.isActive} onChange={(event) => updateUserForm('isActive', event.target.checked)} />
-                Активен
-              </label>
+            {usersStatus && <p className="adminStatus users-status">{usersStatus}</p>}
 
-              <div className="permissionGrid">
-                {PERMISSION_KEYS.map((permission) => (
-                  <label className="adminCheckboxLabel" key={permission}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(userForm.permissionOverrides?.[permission])}
-                      onChange={() => toggleUserPermission(permission)}
-                    />
-                    {PERMISSION_LABELS[permission]}
+            <div className="admin-users-grid">
+              <form className="adminCard adminForm user-form-card" onSubmit={saveUser}>
+                <div className="adminCardHeader compact">
+                  <div>
+                    <h3>{userForm.id ? 'Редактирование пользователя' : 'Новый пользователь'}</h3>
+                    <p>{userForm.id ? 'Пароль можно оставить пустым, если он не меняется.' : 'Заполните учетные данные и назначьте роль.'}</p>
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <label>
+                    <span>Логин</span>
+                    <input value={userForm.login} onChange={(event) => updateUserForm('login', event.target.value)} placeholder="ivanov" required disabled={Boolean(userForm.id)} />
                   </label>
+                  <label>
+                    <span>ФИО</span>
+                    <input value={userForm.fullName} onChange={(event) => updateUserForm('fullName', event.target.value)} placeholder="Иванов Иван Иванович" required />
+                  </label>
+                  <label>
+                    <span>Email</span>
+                    <input type="email" value={userForm.email} onChange={(event) => updateUserForm('email', event.target.value)} placeholder="teacher@example.edu" />
+                  </label>
+                  <label>
+                    <span>Роль</span>
+                    <select value={userForm.role} onChange={(event) => updateUserForm('role', event.target.value)}>
+                      {USER_ROLE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{ROLE_LABELS[option]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Пароль</span>
+                    <input
+                      type="password"
+                      value={userForm.password}
+                      onChange={(event) => updateUserForm('password', event.target.value)}
+                      minLength="8"
+                      required={!userForm.id}
+                      placeholder={userForm.id ? 'Оставьте пустым без изменений' : 'Минимум 8 символов'}
+                    />
+                  </label>
+                  <label className="status-toggle">
+                    <input type="checkbox" checked={userForm.isActive} onChange={(event) => updateUserForm('isActive', event.target.checked)} />
+                    <span className="status-toggle-control" aria-hidden="true" />
+                    <span>
+                      <strong>Активен</strong>
+                      <small>Пользователь может входить в систему</small>
+                    </span>
+                  </label>
+                </div>
+
+                <div className="adminFormActions user-form-actions">
+                  <button type="submit" className="adminPrimarySubmit" disabled={!canSubmitUserForm}>
+                    {userForm.id ? 'Сохранить изменения' : 'Создать пользователя'}
+                  </button>
+                  <button type="button" className="adminSecondaryButton" onClick={resetUserForm}>Очистить форму</button>
+                </div>
+              </form>
+
+              <aside className="adminCard role-info-card">
+                <span className="role-badge">{ROLE_LABELS[userForm.role] || userForm.role}</span>
+                <h3>{ROLE_LABELS[userForm.role] || 'Роль'}</h3>
+                <p>{ROLE_DESCRIPTIONS[userForm.role] || 'Описание роли не задано.'}</p>
+                <div className="role-permission-summary">
+                  <strong>{enabledUserFormPermissions}</strong>
+                  <span>прав включено</span>
+                </div>
+              </aside>
+            </div>
+
+            <div className="adminCard permissions-card">
+              <div className="adminCardHeader compact permissions-header">
+                <div>
+                  <h3>Права доступа</h3>
+                  <p>Индивидуальные права могут отличаться от стандартных прав выбранной роли.</p>
+                </div>
+                <div className="permissions-toolbar">
+                  <span>{enabledUserFormPermissions} из {PERMISSION_KEYS.length} включено</span>
+                  <button type="button" className="adminSecondaryButton" onClick={applyRolePermissions}>
+                    Применить права по роли
+                  </button>
+                </div>
+              </div>
+
+              <div className="permissions-groups">
+                {PERMISSION_GROUPS.map((group) => (
+                  <div className="permission-group" key={group.title}>
+                    <h4>{group.title}</h4>
+                    {group.permissions.map((permission) => {
+                      const enabled = getUserFormPermission(permission);
+                      const isCustom = Object.hasOwn(userForm.permissionOverrides || {}, permission);
+
+                      return (
+                        <label className={`permission-toggle ${enabled ? 'enabled' : ''}`} key={permission}>
+                          <input
+                            type="checkbox"
+                            checked={enabled}
+                            onChange={() => toggleUserPermission(permission)}
+                          />
+                          <span className="permission-switch" aria-hidden="true" />
+                          <span className="permission-toggle-box">
+                            <span className="permission-title">{PERMISSION_LABELS[permission]}</span>
+                            <span className="permission-status">{enabled ? 'Включено' : 'Выключено'}{isCustom ? ' · индивидуально' : ''}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 ))}
               </div>
 
-              <div className="adminFormActions">
-                <button type="submit" className="adminPrimarySubmit">{userForm.id ? 'Сохранить пользователя' : 'Создать пользователя'}</button>
-                {userForm.id && <button type="button" className="adminSecondaryButton" onClick={resetUserForm}>Отменить</button>}
-              </div>
-            </form>
+              {changedUserFormPermissions > 0 && (
+                <p className="adminHint permissions-note">Индивидуально изменено прав: {changedUserFormPermissions}.</p>
+              )}
+            </div>
 
-            {usersStatus && <p className="adminStatus">{usersStatus}</p>}
-            <div className="adminSlideList">
-              {users.map((user) => (
-                <div className="adminSlideItem" key={user.id}>
-                  <div>
-                    <strong>#{user.id} · {user.fullName || user.name || user.login}</strong>
-                    <span>{user.login} · {user.email || 'email не указан'} · {ROLE_LABELS[user.role] || user.role}</span>
-                    <span>{user.isActive ? 'Активен' : 'Заблокирован'} · создан: {new Date(user.createdAt).toLocaleString('ru-RU')}</span>
-                    <span>Последний вход: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('ru-RU') : 'нет данных'}</span>
-                  </div>
-                  <div className="adminSlideActions">
-                    <button type="button" className="adminSecondaryButton" onClick={() => editUser(user)}>Редактировать</button>
-                    <button type="button" className="adminSecondaryButton" onClick={() => changeUserPassword(user)}>Сменить пароль</button>
-                    <button type="button" className="adminSecondaryButton" onClick={() => toggleUserStatus(user)}>{user.isActive ? 'Заблокировать' : 'Активировать'}</button>
-                    <button type="button" className="adminDangerButton" onClick={() => deleteUser(user)}>Удалить</button>
-                  </div>
+            <div className="adminCard users-list-card">
+              <div className="adminCardHeader compact users-list-header">
+                <div>
+                  <h3>Созданные пользователи</h3>
+                  <p>Редактируйте роли, статус, пароль и индивидуальные права доступа.</p>
                 </div>
-              ))}
-              {users.length === 0 && <p className="adminHint">Пользователи пока не созданы.</p>}
+                <span>{users.length} всего</span>
+              </div>
+
+              {users.length === 0 ? (
+                <div className="users-empty-state">
+                  <h3>Пользователи пока не созданы</h3>
+                  <p>Добавьте преподавателя, ординатора или студента, чтобы управлять доступом к атласу.</p>
+                  <button type="button" className="adminPrimarySubmit" onClick={resetUserForm}>Создать первого пользователя</button>
+                </div>
+              ) : (
+                <div className="users-table-wrap">
+                  <table className="users-table">
+                    <thead>
+                      <tr>
+                        <th>Пользователь</th>
+                        <th>Email</th>
+                        <th>Роль</th>
+                        <th>Статус</th>
+                        <th>Права</th>
+                        <th>Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id}>
+                          <td>
+                            <strong>{user.fullName || user.name || user.login}</strong>
+                            <span>{user.login}</span>
+                            <small>Создан: {user.createdAt ? new Date(user.createdAt).toLocaleString('ru-RU') : 'нет данных'}</small>
+                          </td>
+                          <td>{user.email || 'email не указан'}</td>
+                          <td><span className="role-badge">{ROLE_LABELS[user.role] || user.role}</span></td>
+                          <td><span className={`status-badge ${user.isActive ? 'active' : 'blocked'}`}>{user.isActive ? 'Активен' : 'Заблокирован'}</span></td>
+                          <td>
+                            <span className="permission-count">{countEnabledPermissions(user.permissions)} включено</span>
+                            <small>Последний вход: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('ru-RU') : 'нет данных'}</small>
+                          </td>
+                          <td>
+                            <div className="users-table-actions">
+                              <button type="button" className="adminSecondaryButton" onClick={() => editUser(user)}>Редактировать</button>
+                              <button type="button" className="adminSecondaryButton" onClick={() => changeUserPassword(user)}>Сменить пароль</button>
+                              <button type="button" className="adminSecondaryButton" onClick={() => toggleUserStatus(user)}>{user.isActive ? 'Заблокировать' : 'Активировать'}</button>
+                              <button type="button" className="adminDangerButton" onClick={() => deleteUser(user)}>Удалить</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </section>
         )}

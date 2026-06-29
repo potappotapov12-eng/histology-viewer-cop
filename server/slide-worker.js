@@ -39,6 +39,12 @@ async function findTileFile(directoryPath) {
   return null;
 }
 
+
+function getXmlAttribute(tag, attributeName) {
+  const match = tag.match(new RegExp("\\b" + attributeName + "=[\"\\x27]([^\"\\x27]+)[\"\\x27]", "i"));
+  return match?.[1] || null;
+}
+
 async function ensureDziOutput(outputBase) {
   const dziPath = `${outputBase}.dzi`;
   const tilesDir = `${outputBase}_files`;
@@ -53,11 +59,15 @@ async function ensureDziOutput(outputBase) {
 
   const dziContent = await fs.readFile(dziPath, 'utf8');
 
-  const imageMatch = dziContent.match(/<Image\b[^>]*\bTileSize=["'](\d+)["'][^>]*\bFormat=["']([a-z0-9]+)["'][^>]*>/i);
-  const sizeMatch = dziContent.match(/<Size\b[^>]*\bWidth=["'](\d+)["'][^>]*\bHeight=["'](\d+)["'][^>]*\/?\s*>/i);
+  const imageTag = dziContent.match(/<Image\b[^>]*>/i)?.[0] || "";
+  const sizeTag = dziContent.match(/<Size\b[^>]*\/?\s*>/i)?.[0] || "";
+  const tileSize = Number(getXmlAttribute(imageTag, "TileSize"));
+  const format = getXmlAttribute(imageTag, "Format");
+  const width = Number(getXmlAttribute(sizeTag, "Width"));
+  const height = Number(getXmlAttribute(sizeTag, "Height"));
 
-  if (!imageMatch || !sizeMatch || Number(imageMatch[1]) < 1 || Number(sizeMatch[1]) < 1 || Number(sizeMatch[2]) < 1) {
-    throw new Error('Созданный DZI-файл не похож на корректный Deep Zoom Image');
+  if (!imageTag || !sizeTag || tileSize < 1 || !format || width < 1 || height < 1) {
+    throw new Error("Созданный DZI-файл не похож на корректный Deep Zoom Image");
   }
 
   if (!(await findTileFile(tilesDir))) {

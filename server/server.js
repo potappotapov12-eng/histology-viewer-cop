@@ -18,6 +18,12 @@ import {
   gradeTextAnswer,
   normalizeOpenAnswer,
 } from './diagnosticLogic.js';
+import {
+  ROLE_PERMISSIONS,
+  normalizePermissionOverrides,
+  normalizeRole,
+  permissionsForRole,
+} from './authConfig.js';
 
 const execFileAsync = promisify(execFile);
 const scryptAsync = promisify(crypto.scrypt);
@@ -329,32 +335,6 @@ function getSessionRole(token) {
   ) ? { role, login } : null;
 }
 
-const ROLE_PERMISSIONS = {
-  admin: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: true, canEditSlideCards: true, canDeleteSlideCards: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canDeleteDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: true, canManageUsers: true, canManageRoles: true, canManageMoodle: true, canManageLti: true, canSendGradesToMoodle: true },
-  teacher_full: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: true, canEditSlideCards: true, canDeleteSlideCards: true, canUploadSlides: true, canEditSlides: true, canDeleteSlides: true, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: true, canDeleteDiagnostics: true, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
-  teacher_limited: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: false, canEditSlideCards: false, canDeleteSlideCards: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: true, canEditOwnDiagnostics: true, canEditAllDiagnostics: false, canDeleteDiagnostics: false, canViewResults: true, canGradeResults: true, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
-  resident: { canViewSlides: true, canViewSlideCards: false, canViewSlideDescriptions: false, canCreateSlideCards: false, canEditSlideCards: false, canDeleteSlideCards: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canDeleteDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
-  student: { canViewSlides: true, canViewSlideCards: true, canViewSlideDescriptions: true, canCreateSlideCards: false, canEditSlideCards: false, canDeleteSlideCards: false, canUploadSlides: false, canEditSlides: false, canDeleteSlides: false, canCreateDiagnostics: false, canEditOwnDiagnostics: false, canEditAllDiagnostics: false, canDeleteDiagnostics: false, canViewResults: false, canGradeResults: false, canManageTeachers: false, canManageUsers: false, canManageRoles: false, canManageMoodle: false, canManageLti: false, canSendGradesToMoodle: false },
-};
-
-const USER_ROLES = Object.keys(ROLE_PERMISSIONS);
-function normalizeRole(role, fallback = 'student') {
-  return USER_ROLES.includes(role) ? role : fallback;
-}
-function normalizePermissionOverrides(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  return Object.fromEntries(
-    Object.keys(ROLE_PERMISSIONS.admin)
-      .filter((key) => typeof value[key] === 'boolean')
-      .map((key) => [key, value[key]])
-  );
-}
-function permissionsForRole(role, overrides = {}) {
-  return {
-    ...(ROLE_PERMISSIONS[normalizeRole(role)] || ROLE_PERMISSIONS.student),
-    ...normalizePermissionOverrides(overrides),
-  };
-}
 const DEV_AUTH_ENABLED = process.env.NODE_ENV !== 'production' && process.env.DEV_AUTH_BYPASS === 'true';
 const DEV_AUTH_ROLE = Object.hasOwn(ROLE_PERMISSIONS, process.env.DEV_AUTH_ROLE)
   ? process.env.DEV_AUTH_ROLE
@@ -712,6 +692,12 @@ async function getSessionUser(req) {
   if (storedTeacher?.active) {
     const role = normalizeRole(storedTeacher.role, 'teacher_full');
     return { authProvider: 'local', role, login: storedTeacher.login, name: storedTeacher.login, permissions: permissionsForRole(role), courseIds: storedTeacher.course_ids || [], groupIds: storedTeacher.group_ids || [], courseExternalIds: [], isActive: true };
+  }
+
+  const configuredTeacher = TEACHER_ACCOUNTS.find((account) => account.login === session.login);
+  if (configuredTeacher || (session.role === 'teacher' && session.login === 'teacher' && TEACHER_PASSWORD)) {
+    const role = 'teacher_full';
+    return { authProvider: 'local', role, login: session.login, name: session.login, permissions: permissionsForRole(role), courseIds: [], groupIds: [], courseExternalIds: [], isActive: true };
   }
 
   return null;
@@ -2204,13 +2190,23 @@ function getDziTilesFolderName(dziContent) {
   return match[1].replace(/\/$/, '');
 }
 
+
+function getXmlAttribute(tag, attributeName) {
+  const match = tag.match(new RegExp("\\b" + attributeName + "=[\"\\x27]([^\"\\x27]+)[\"\\x27]", "i"));
+  return match?.[1] || null;
+}
+
 async function validateDziFileAndTiles(dziPath, tilesPath) {
   const dziContent = await fs.readFile(dziPath, 'utf8');
-  const imageMatch = dziContent.match(/<Image\b[^>]*\bTileSize=["'](\d+)["'][^>]*\bFormat=["']([a-z0-9]+)["'][^>]*>/i);
-  const sizeMatch = dziContent.match(/<Size\b[^>]*\bWidth=["'](\d+)["'][^>]*\bHeight=["'](\d+)["'][^>]*\/?\s*>/i);
+  const imageTag = dziContent.match(/<Image\b[^>]*>/i)?.[0] || "";
+  const sizeTag = dziContent.match(/<Size\b[^>]*\/?\s*>/i)?.[0] || "";
+  const tileSize = Number(getXmlAttribute(imageTag, "TileSize"));
+  const format = getXmlAttribute(imageTag, "Format");
+  const width = Number(getXmlAttribute(sizeTag, "Width"));
+  const height = Number(getXmlAttribute(sizeTag, "Height"));
 
-  if (!imageMatch || !sizeMatch || Number(imageMatch[1]) < 1 || Number(sizeMatch[1]) < 1 || Number(sizeMatch[2]) < 1) {
-    throw new Error('DZI-файл не содержит корректную структуру Deep Zoom');
+  if (!imageTag || !sizeTag || tileSize < 1 || !format || width < 1 || height < 1) {
+    throw new Error("DZI-файл не содержит корректную структуру Deep Zoom");
   }
 
   if (!(await pathExists(tilesPath))) {
@@ -3066,7 +3062,7 @@ app.put('/api/admin/diagnostics/:id', requirePermission('canEditOwnDiagnostics')
   }
 });
 
-app.delete('/api/admin/diagnostics/:id', requirePermission('canEditAllDiagnostics'), async (req, res) => {
+app.delete('/api/admin/diagnostics/:id', requirePermission('canDeleteDiagnostics'), async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
     const nextDiagnostics = diagnostics.filter((item) => item.id !== req.params.id);
 
@@ -3150,7 +3146,7 @@ app.patch('/api/admin/results/:id/review', requirePermission('canGradeResults'),
   }
 });
 
-app.get('/api/admin/diagnostics/:id/results.csv', async (req, res) => {
+app.get('/api/admin/diagnostics/:id/results.csv', requirePermission('canViewResults'), async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
   const diagnostic = diagnostics.find((item) => item.id === req.params.id);
 
@@ -3215,7 +3211,7 @@ app.get('/api/admin/diagnostics/:id/results.csv', async (req, res) => {
   res.send(`\uFEFF${csv}`);
 });
 
-app.get('/api/admin/diagnostics/:id/report.html', async (req, res) => {
+app.get('/api/admin/diagnostics/:id/report.html', requirePermission('canViewResults'), async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
   const diagnostic = diagnostics.find((item) => item.id === req.params.id);
 
@@ -3235,7 +3231,7 @@ app.get('/api/admin/diagnostics/:id/report.html', async (req, res) => {
   res.send(buildDetailedReportHtml(diagnostic, results));
 });
 
-app.get('/api/admin/diagnostics/:id/preview', async (req, res) => {
+app.get('/api/admin/diagnostics/:id/preview', requirePermission('canCreateDiagnostics'), async (req, res) => {
   const diagnostics = await readJsonArray(DIAGNOSTICS_JSON);
   const diagnostic = diagnostics.find((item) => item.id === req.params.id);
 
@@ -3623,7 +3619,7 @@ app.post('/api/admin/results/:id/resend-to-moodle', requirePermission('canSendGr
   }
 });
 
-app.get('/api/admin/jobs/:id', (req, res) => {
+app.get('/api/admin/jobs/:id', requirePermission('canUploadSlides'), (req, res) => {
   const job = jobs.get(req.params.id);
 
   if (!job) {

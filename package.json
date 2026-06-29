@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "test:server": "npm --prefix server test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preflight": "npm run lint && npm run build && npm run test:server"
   },
   "dependencies": {
     "openseadragon": "^6.0.2",

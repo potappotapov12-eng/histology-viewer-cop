@@ -201,6 +201,22 @@ npm run dev
 npm run dev -- --host 0.0.0.0
 ```
 
+## Подготовка к полноценной работе
+
+Перед рабочим запуском используйте production-шаблон окружения и чеклисты:
+
+- `.env.production.example` — пример переменных окружения для сервера;
+- `docs/production-readiness.md` — контрольный список готовности;
+- `docs/deployment-systemd-nginx.md` — пример запуска через systemd и nginx.
+
+Финальная автоматическая проверка из корня проекта:
+
+```bash
+npm run preflight
+```
+
+Команда запускает lint, production-сборку frontend и backend-тесты.
+
 ## Проверка состояния
 
 Backend отдаёт диагностический endpoint:
