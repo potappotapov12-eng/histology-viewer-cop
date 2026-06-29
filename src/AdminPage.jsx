@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_REGION_THRESHOLD,
   DIAGNOSTIC_DATE_TIME_FORMATTER,
@@ -1238,145 +1238,6 @@ function getResultSearchText(result) {
   ]
     .map((value) => String(value || '').toLowerCase())
     .join(' ');
-}
-
-function AdminLoginGate() {
-  const [authState, setAuthState] = useState({
-    isLoading: true,
-    configured: false,
-    authenticated: false,
-  });
-  const [loginName, setLoginName] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const loadSession = useCallback(async () => {
-    const response = await fetch('/api/admin/session');
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Не удалось проверить сессию администратора');
-    }
-
-    setAuthState({
-      isLoading: false,
-      configured: Boolean(data.configured),
-      authenticated: Boolean(data.authenticated),
-      role: data.role || '',
-    });
-  }, []);
-
-  useEffect(() => {
-    loadSession().catch((sessionError) => {
-      setAuthState({
-        isLoading: false,
-        configured: false,
-        authenticated: false,
-      });
-      setError(sessionError.message);
-    });
-  }, [loadSession]);
-
-  const login = async (event) => {
-    event.preventDefault();
-    setError('');
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ login: loginName, password }),
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Не удалось войти');
-      }
-
-      setPassword('');
-      await loadSession();
-    } catch (loginError) {
-      setError(loginError.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const logout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
-    setAuthState((current) => ({
-      ...current,
-      authenticated: false,
-    }));
-  };
-
-  if (authState.isLoading) {
-    return (
-      <div className="adminLoginPage">
-        <section className="adminLoginCard">
-          <h1>Админ-панель</h1>
-          <p>Проверка доступа...</p>
-        </section>
-      </div>
-    );
-  }
-
-  if (!authState.configured) {
-    return (
-      <div className="adminLoginPage">
-        <section className="adminLoginCard">
-          <h1>Админ-панель</h1>
-          <p>Авторизация администратора не настроена. Задайте `ADMIN_PASSWORD` на сервере и перезапустите backend.</p>
-          {error && <p className="adminLoginError">{error}</p>}
-          <a href="/" className="adminBackLink">Открыть атлас</a>
-        </section>
-      </div>
-    );
-  }
-
-  if (!authState.authenticated) {
-    return (
-      <div className="adminLoginPage">
-        <form className="adminLoginCard" onSubmit={login}>
-          <div>
-            <h1>Вход в админ-панель</h1>
-            <p>Введите пароль администратора, чтобы управлять препаратами и диагностиками.</p>
-          </div>
-          <label>
-            Логин
-            <input
-              value={loginName}
-              onChange={(event) => setLoginName(event.target.value)}
-              autoComplete="username"
-              autoFocus
-            />
-          </label>
-          <label>
-            Пароль
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          {error && <p className="adminLoginError">{error}</p>}
-          <div className="adminLoginActions">
-            <button type="submit" disabled={isSubmitting || !loginName || !password}>
-              {isSubmitting ? 'Вход...' : 'Войти'}
-            </button>
-            <a href="/" className="adminSecondaryButton">Открыть атлас</a>
-          </div>
-        </form>
-      </div>
-    );
-  }
-
-  return <AdminDashboard onLogout={logout} role={authState.role} />;
 }
 
 function AdminDashboard({ onLogout, role }) {
@@ -4249,4 +4110,4 @@ function AdminDashboard({ onLogout, role }) {
   );
 }
 
-export default AdminLoginGate;
+export default AdminDashboard;

@@ -48,16 +48,15 @@ select {
 }
 
 .loginShell {
-  width: min(1040px, 100%);
+  width: min(560px, 100%);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 22px;
+  grid-template-columns: 1fr;
+  gap: 18px;
   align-items: stretch;
   animation: loginEnter 0.45s ease both;
 }
 
 .loginBrand,
-.loginRoles,
 .loginPanel {
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(15, 23, 42, 0.82);
@@ -66,7 +65,6 @@ select {
 }
 
 .loginBrand {
-  grid-column: 1 / -1;
   min-height: 78px;
   display: flex;
   align-items: center;
@@ -106,8 +104,7 @@ select {
   margin-bottom: 8px;
 }
 
-.loginIntro p,
-.loginRoles span {
+.loginIntro p {
   margin: 0;
   color: #67e8f9;
   font-size: 12px;
@@ -138,7 +135,8 @@ select {
   font-weight: 700;
 }
 
-.loginField input {
+.loginField input,
+.passwordField {
   width: 100%;
   height: 52px;
   border: 1px solid rgba(148, 163, 184, 0.28);
@@ -153,16 +151,61 @@ select {
     background 0.18s ease;
 }
 
+.passwordField {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.passwordField input {
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-right: 10px;
+}
+
+.passwordField input:focus {
+  box-shadow: none;
+}
+
+.passwordField button {
+  height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(103, 232, 249, 0.26);
+  border-radius: 10px;
+  color: #cffafe;
+  background: rgba(8, 145, 178, 0.16);
+  padding: 0 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.passwordField button:hover {
+  border-color: rgba(103, 232, 249, 0.58);
+  color: #ffffff;
+  background: rgba(8, 145, 178, 0.28);
+}
+
 .loginField input::placeholder {
   color: #64748b;
 }
 
-.loginField input:hover {
+.loginField input:hover,
+.passwordField:hover {
   border-color: rgba(203, 213, 225, 0.48);
   background: rgba(15, 23, 42, 0.84);
 }
 
-.loginField input:focus {
+.loginField input:focus,
+.passwordField:focus-within {
   border-color: #67e8f9;
   box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.14);
 }
@@ -233,32 +276,6 @@ select {
   border-top-color: #08111f;
   border-radius: 50%;
   animation: loginSpin 0.75s linear infinite;
-}
-
-.loginRoles {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 28px;
-  border-radius: 22px;
-}
-
-.loginRoles ul {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.loginRoles li {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 12px;
-  color: #e2e8f0;
-  background: rgba(30, 41, 59, 0.58);
-  padding: 12px 14px;
 }
 
 @keyframes loginSpin {
@@ -1202,84 +1219,11 @@ select {
   color: #111827;
 }
 
-.adminLoginPage {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: #eef2f7;
-  color: #111827;
-}
-
-.adminLoginCard {
-  width: min(100%, 440px);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #ffffff;
-  padding: 24px;
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
-}
-
-.adminLoginCard h1,
-.adminLoginCard p {
-  margin: 0;
-}
-
-.adminLoginCard p {
-  color: #64748b;
-  line-height: 1.45;
-}
-
-.adminLoginCard label {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  color: #374151;
-  font-weight: 700;
-}
-
-.adminLoginCard input {
-  min-height: 42px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  padding: 9px 11px;
-  font: inherit;
-}
-
-.adminLoginActions,
 .adminHeaderActions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-}
-
-.adminLoginActions button {
-  min-height: 40px;
-  border: 0;
-  border-radius: 10px;
-  background: #b91c1c;
-  color: #ffffff;
-  padding: 9px 14px;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.adminLoginActions button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.adminLoginError {
-  border: 1px solid #fecaca;
-  border-radius: 10px;
-  background: #fef2f2;
-  color: #991b1b !important;
-  padding: 10px 12px;
-  font-weight: 700;
 }
 
 .adminHeader {
@@ -4652,8 +4596,7 @@ a:focus-visible {
   }
 
   .loginBrand,
-  .loginPanel,
-  .loginRoles {
+  .loginPanel {
     border-radius: 16px;
   }
 

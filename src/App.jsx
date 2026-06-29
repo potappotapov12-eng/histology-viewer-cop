@@ -725,6 +725,7 @@ function ErrorApp({ message }) {
 function LoginPage({ authConfig, onAuthenticated }) {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmit = login.trim().length > 0 && password.length > 0 && !isSubmitting;
@@ -783,29 +784,44 @@ function LoginPage({ authConfig, onAuthenticated }) {
           <div className="loginIntro">
             <p>Защищённый вход</p>
             <h1>Авторизация</h1>
-            <span>Роль и доступные разделы будут определены автоматически после входа.</span>
+            <span>Введите логин и пароль для доступа к атласу.</span>
           </div>
 
           <label className="loginField">
             Логин
             <input
               value={login}
-              onChange={(event) => setLogin(event.target.value)}
+              onChange={(event) => {
+                setLogin(event.target.value);
+                setError('');
+              }}
               autoComplete="username"
               autoFocus
-              placeholder="admin, teacher или ваш логин"
+              placeholder="Введите логин"
             />
           </label>
 
           <label className="loginField">
             Пароль
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              placeholder="Введите пароль"
-            />
+            <div className="passwordField">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setError('');
+                }}
+                autoComplete="current-password"
+                placeholder="Введите пароль"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+              >
+                {showPassword ? 'Скрыть' : 'Показать'}
+              </button>
+            </div>
           </label>
 
           {error && <p className="loginError">{error}</p>}
@@ -821,17 +837,6 @@ function LoginPage({ authConfig, onAuthenticated }) {
             </button>
           )}
         </form>
-
-        <aside className="loginRoles" aria-label="Роли пользователей">
-          <span>Роли</span>
-          <ul>
-            <li>Администратор</li>
-            <li>Преподаватель полный</li>
-            <li>Преподаватель ограниченный</li>
-            <li>Ординатор</li>
-            <li>Студент</li>
-          </ul>
-        </aside>
       </section>
     </main>
   );
@@ -2037,6 +2042,15 @@ function AuthenticatedApp() {
     });
   }, [loadAuthState]);
 
+  const logout = useCallback(async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    window.history.replaceState(null, '', '/');
+    setState((current) => ({
+      ...current,
+      user: null,
+    }));
+  }, []);
+
   if (state.loading) return <LoadingApp />;
   if (!state.user) {
     return (
@@ -2051,7 +2065,7 @@ function AuthenticatedApp() {
   if (window.location.pathname.startsWith('/admin')) {
     return (
       <Suspense fallback={<LoadingApp />}>
-        <AdminPage />
+        <AdminPage onLogout={logout} role={state.user.role} />
       </Suspense>
     );
   }
